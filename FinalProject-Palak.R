@@ -23,10 +23,9 @@ library(viridis)
 library(stargazer)
 options(scipen=999)
 options(tigris_class = "sf")
-```
 
 ### Themes, Palettes, and Quantile Break Functions
-```{r load_themes, message = FALSE}
+
 # Themes and Functions
 mapTheme <- function(base_size = 12) {
   theme(
@@ -179,3 +178,9 @@ multipleRingBuffer <- function(inputPolygon, maxDistance, interval)
   #convert the allRings data frame to an sf data frame
   allRings <- st_as_sf(allRings)
 }
+
+
+firep19_1 <- st_read(dsn="C:\\Users\\agarw\\Documents\\MUSA508\\Final\\fire19_1\\fire19_1.gdb", layer="firep19_1")
+
+ggplot() +
+  geom_sf(data = firep19_1)
