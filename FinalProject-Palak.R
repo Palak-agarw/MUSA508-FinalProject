@@ -184,3 +184,8 @@ firep19_1 <- st_read(dsn="C:\\Users\\agarw\\Documents\\MUSA508\\Final\\fire19_1\
 
 ggplot() +
   geom_sf(data = firep19_1)
+
+seedzones_clipped <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/seedzones_sixcounties.shp")
+
+ggplot() +
+  geom_sf(data = seedzones_clipped)
