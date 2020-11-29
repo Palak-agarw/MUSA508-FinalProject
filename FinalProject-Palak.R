@@ -208,3 +208,7 @@ ggplot() +
 direct_protection_areas <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/direct_protection_areas.shp")
 
 fire_suppression_facilities <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_suppression_facilities.shp")
+
+fire_hazard_severity_zones <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_hazard_severity_zones.shp")
+
+
