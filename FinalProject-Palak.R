@@ -185,7 +185,26 @@ firep19_1 <- st_read(dsn="C:\\Users\\agarw\\Documents\\MUSA508\\Final\\fire19_1\
 ggplot() +
   geom_sf(data = firep19_1)
 
+# Read in Data
+
 seedzones_clipped <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/seedzones_sixcounties.shp")
 
 ggplot() +
   geom_sf(data = seedzones_clipped)
+
+seedzones_unclipped <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/seedzones_unclipped.shp") 
+
+calfire_admin_boundaries_northsouth <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/calfire_admin_boundaries_northsouth.shp") 
+
+calfire_admin_boundaries_unit <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/calfire_admin_boundaries_unit.shp") 
+
+fire_perimeters <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_perimeters.shp")
+
+counties <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/counties.shp")
+
+ggplot() +
+  geom_sf(data = counties)
+
+direct_protection_areas <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/direct_protection_areas.shp")
+
+fire_suppression_facilities <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_suppression_facilities.shp")
