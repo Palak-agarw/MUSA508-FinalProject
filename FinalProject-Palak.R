@@ -200,6 +200,9 @@ calfire_admin_boundaries_unit <- st_read("C:/Users/owner160829a/Desktop/Graduate
 
 fire_perimeters <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_perimeters.shp")
 
+ggplot() +
+  geom_sf(data = fire_perimeters)
+
 counties <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/counties.shp")
 
 ggplot() +
@@ -210,5 +213,24 @@ direct_protection_areas <- st_read("C:/Users/owner160829a/Desktop/Graduate Schoo
 fire_suppression_facilities <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_suppression_facilities.shp")
 
 fire_hazard_severity_zones <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_hazard_severity_zones.shp")
+
+tree_mortality_related_highvigh_fire_severity <-st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/tree_mortality_related_highvigh_fire_severity.shp")
+
+tree_mortality_critical_infrastructure_tier1.shp <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/tree_mortality_critical_infrastructure_tier1.shp")
+  
+## Getting warning messages
+tree_mortality_watershed_tier2.shp <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/tree_mortality_watershed_tier2.shp") 
+
+## Creating a fishnet grid
+
+
+fishnet <- 
+  st_make_grid(counties, cellsize = 5280) %>%
+  st_sf() %>%
+  mutate(uniqueID = rownames(.))
+
+ggplot() +
+  geom_sf(data = fishnet)
+
 
 
