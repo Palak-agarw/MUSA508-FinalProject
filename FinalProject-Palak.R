@@ -221,6 +221,9 @@ tree_mortality_critical_infrastructure_tier1.shp <- st_read("C:/Users/owner16082
 ## Getting warning messages
 tree_mortality_watershed_tier2.shp <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/tree_mortality_watershed_tier2.shp") 
 
+## Trying to read in raster data
+wui <- st_read(dsn="C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/WUI12_3.gdb", layer="WUI12_3.gdb")
+
 ## Creating a fishnet grid
 
 
