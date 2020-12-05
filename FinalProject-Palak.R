@@ -1,4 +1,4 @@
-#importing the library
+# LIBRARIES
 library(rjson)
 library(tidycensus)
 library(tidyverse)
@@ -24,9 +24,7 @@ library(stargazer)
 options(scipen=999)
 options(tigris_class = "sf")
 
-### Themes, Palettes, and Quantile Break Functions
-
-# Themes and Functions
+# THEMES AND FUNCTIONS
 mapTheme <- function(base_size = 12) {
   theme(
     text = element_text( color = "black"),
@@ -76,8 +74,7 @@ qBr <- function(df, variable, rnd) {
 }
 q5 <- function(variable) {as.factor(ntile(variable, 5))}
 
-
-# Functions
+# FUNCTIONS
 nn_function <- function(measureFrom,measureTo,k) {
   measureFrom_Matrix <- as.matrix(measureFrom)
   measureTo_Matrix <- as.matrix(measureTo)
@@ -96,6 +93,7 @@ nn_function <- function(measureFrom,measureTo,k) {
   
   return(output)  
 }
+
 #Function MultipleRingBuffer
 multipleRingBuffer <- function(inputPolygon, maxDistance, interval) 
 {
@@ -179,52 +177,6 @@ multipleRingBuffer <- function(inputPolygon, maxDistance, interval)
   allRings <- st_as_sf(allRings)
 }
 
-
-#seedzones_clipped <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/seedzones_sixcounties.shp")
-
-#seedzones_unclipped <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/seedzones_unclipped.shp") 
-
-#direct_protection_areas <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/direct_protection_areas.shp")
-
-#tree_mortality_related_highvigh_fire_severity <-st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/tree_mortality_related_highvigh_fire_severity.shp")
-
-#tree_mortality_critical_infrastructure_tier1 <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/tree_mortality_critical_infrastructure_tier1.shp")
-  
-## Getting warning messages
-#tree_mortality_watershed_tier2.shp <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/tree_mortality_watershed_tier2.shp") 
-
-## Trying to read in raster data
-#wui <- st_read(dsn="C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/WUI12_3.gdb", layer="WUI12_3.gdb")
-
-## Reading in raster to polygon data
-#fire_threat_vector <-st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_threat_vector.shp") 
-
-
-#ggplot() +
- # geom_sf(data = fishnet)
-
-# Trying to calculate area of polygon within fishnet
-#seedzones_intersection <- as_tibble (st_intersection(seedzones_unclipped,fishnet))
-#seedzones_intersection$area <- st_area(seedzones_intersection$geometry)
-
-#plot (seedzones_unclipped$geometry, col='green')
-#plot(fishnet$geometry, add=T)
-#plot(seedzones_intersection$geometry, col='red', add=T)
-
-#tb_seedzone_by_fishnet <- seedzones_intersection %>%
- # group_by(uniqueID) %>%
-  #summarise(area = sum(area))
-
-
-#st_area(st_intersection(fishnet,tree_mortality_critical_infrastructure_tier1.shp))
-#st_intersection(x,y)
-
-#aggregate(tree_mortality_critical_infrastructure_tier1$Shape_Area, by=fishnet, FUN=sum)
-
-#tree_tier1_net <- aggregate(tree_mortality_critical_infrastructure_tier1$Shape_Area, fishnet, sum) %>%
-  #mutate(uniqueID = rownames(.),
-        # cvID = sample(round(nrow(fishnet) / 24), size=nrow(fishnet), replace = TRUE))
-
 ## READ IN DATA
 
 calfire_admin_boundaries_northsouth <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/calfire_admin_boundaries_northsouth.shp") 
@@ -234,7 +186,9 @@ calfire_admin_boundaries_unit <- st_read("C:/Users/owner160829a/Desktop/Graduate
 fire_perimeters <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_perimeters.shp")
 
 ggplot() +
-  geom_sf(data = fire_perimeters)
+  geom_sf(data = fire_perimeters) + 
+  geom_sf(aes=(fill="YEAR_")) +
+  mapTheme()
 
 counties <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/counties.shp")
 
