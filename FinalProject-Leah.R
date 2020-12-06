@@ -21,6 +21,9 @@ library(fastDummies)
 library(FNN)
 library(viridis)
 library(stargazer)
+library(pscl)
+library(pROC)
+library(plotROC)
 options(scipen=999)
 options(tigris_class = "sf")
 
@@ -62,7 +65,10 @@ plotTheme <- function(base_size = 12) {
     strip.text.x = element_text(size = 14)
   )
 }
+
 palette5 <- c("#25CB10", "#5AB60C", "#8FA108",   "#C48C04", "#FA7800")
+palette2 <- c("#981FAC","#FF006A")
+
 qBr <- function(df, variable, rnd) {
   if (missing(rnd)) {
     as.character(quantile(round(df[[variable]],0),
@@ -179,8 +185,11 @@ multipleRingBuffer <- function(inputPolygon, maxDistance, interval)
 
 ## READ IN DATA
 
-fire_perimeters <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_perimeters.shp") %>%
-  filter (YEAR_=="2018" | YEAR_=="2019") %>% st_transform('EPSG:2225')
+#fire_perimeters <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_perimeters.shp") %>%
+  #filter (YEAR_=="2018" | YEAR_=="2019") %>% st_transform
+
+fire_pt <- st_read("https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/arcgis/rest/services/California_Fire_Perimeters/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson")%>%
+  st_transform('EPSG:2225')
 
 fire_suppression_facilities <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_suppression_facilities.shp")
 
@@ -201,19 +210,56 @@ fishnet_clipped <- fishnet_clipped %>% dplyr::select(WUI_MAJORI,FVEG_MAJOR,ELEVA
 
 # Adding Unique IDs for each cell
 fishnet_clipped$ID <-  seq.int(nrow(fishnet_clipped))
-                               
-# Joining Fire Perimeters to Fishnet
 
-fishnet_fires <- st_intersection(fire_perimeters,fishnet_clipped)
-fishnet_fires2 <- fire_perimeters[fishnet_clipped,]
-fishnet_fires3 <- st_intersection(fire_perimeters,fishnet_clipped)
+# Getting rid of a weird column that got added for me
+fishnet_clipped <- fishnet_clipped %>% select (-"==...")
 
-## Creating a fishnet grid
+## Joining fire data to fishnets 
+###2016-17
+fire_perimeter1617 <-
+  fire_pt %>%
+  filter(YEAR_  == '2016' | YEAR_ =='2017') %>%
+  st_transform('EPSG:2225')
 
-#fishnet <- 
-# st_make_grid(counties, cellsize = 5280) %>%
-#st_sf() %>%
-#mutate(uniqueID = rownames(.))
+ggplot() +
+  geom_sf(data = fire_perimeter1617, fill="orange")+
+  geom_sf(data = selected_counties, fill = 'transparent')
+
+clip1617 <- 
+  st_intersection(st_make_valid(fire_perimeter1617),st_make_valid(fishnet_clipped)) %>%
+  select(ID) %>%
+  st_drop_geometry() %>%
+  mutate(Fire1617 = 1) %>%
+  distinct()
+
+fishnet_clipped <-
+  fishnet_clipped %>%
+  left_join(., clip1617, on= 'ID') 
+
+fishnet_clipped$Fire1617 <- ifelse(is.na(fishnet_clipped$Fire1617),0, fishnet_clipped$Fire1617)
+
+###2018-19
+fire_perimeter1819 <-
+  fire_pt %>%
+  filter(YEAR_  == '2018' | YEAR_ =='2019') %>%
+  st_transform('EPSG:2225')
+
+ggplot() +
+  geom_sf(data = fire_perimeter1819)+
+  geom_sf(data = selected_counties, fill = 'transparent')
+
+clip1819 <- 
+  st_intersection(st_make_valid(fire_perimeter1819),st_make_valid(fishnet_clipped)) %>%
+  select(ID) %>%
+  st_drop_geometry() %>%
+  mutate(Fire1819 = 1) %>%
+  distinct()
+
+fishnet_clipped <-
+  fishnet_clipped %>%
+  left_join(., clip1819, on= 'ID') 
+
+fishnet_clipped$Fire1819 <- ifelse(is.na(fishnet_clipped$Fire1819),0, fishnet_clipped$Fire1819)
 
 # EXPLORATORY ANALYSIS
 
@@ -254,23 +300,20 @@ fishnet_clipped <- fishnet_clipped %>%
     WUI.nn=
       nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(wui_points),1),)
 
-
-
-rowMeans(data[ , c(1,2)], na.rm=TRUE)
 # LOCAL MORAN's I
 # Join nn features to our fishnet
 ## important to drop the geometry from joining features
-final_net <-
-  left_join(crime_net, st_drop_geometry(vars_net), by="uniqueID")
+#final_net <-
+  #left_join(crime_net, st_drop_geometry(vars_net), by="uniqueID")
 
-final_net <-
-  st_centroid(final_net) %>%
-  st_join(dplyr::select(Neighborhoods, NAME), by = "uniqueID") %>%
-  st_join(dplyr::select(PoliceDistricts, ID), by = "uniqueID") %>%
-  st_drop_geometry() %>%
-  left_join(dplyr::select(final_net, geometry, uniqueID)) %>%
-  st_sf() %>%
-  na.omit()
+#final_net <-
+  #st_centroid(final_net) %>%
+  #st_join(dplyr::select(Neighborhoods, NAME), by = "uniqueID") %>%
+  #st_join(dplyr::select(PoliceDistricts, ID), by = "uniqueID") %>%
+  #st_drop_geometry() %>%
+  #left_join(dplyr::select(final_net, geometry, uniqueID)) %>%
+  #st_sf() %>%
+  #na.omit()
 
 ## Local Moran's I for fishnet grid cells
 ## generates warnings from PROJ issues
@@ -317,24 +360,30 @@ final_net <-
 
 # DATA VISUALIZATIONS
 ##continuous variables
-house_subsidy %>%
-  dplyr::select(y,unemploy_rate, spent_on_repairs, age, campaign, 
-                previous,cons.price.idx,cons.conf.idx) %>%
-  rename("Unemployment Rate" = unemploy_rate, "$ Spent on Repairs" = spent_on_repairs, "Age of Homeowner"=age, "# of contacts"=campaign, "# of previous contacts"=previous, "Cons. Price Index"=cons.price.idx, "Cons. Conf. Index"=cons.conf.idx) %>%
-  gather(Variable, value, -y) %>%
-  ggplot(aes(y, value, fill=y)) + 
+fishnet_clipped %>% st_drop_geometry() %>%
+  dplyr::select(Fire1617, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
+                SEP1819_ME,OCT1819_ME, Conifer.nn, Shrub.nn, Hardwood.nn, 
+                Facilities.nn, WUI.nn) %>%
+  rename("Elevation" = ELEVATION_, "Slope" = SLOPE_MEAN, "July Temp"=JUL1819_ME,
+         "August Temp"=AUG1819_ME,"September Temp"=SEP1819_ME,"October Temp"=OCT1819_ME,
+        "Dist. to Conifer"=Conifer.nn, "Dist. to Shrub"=Shrub.nn, "Dist. to Hardwood"=Hardwood.nn,
+        "Dist. to Nearest 3 Facilities"=Facilities.nn, "Distance to Wildland/Urban Interface"=WUI.nn) %>%
+  gather(Variable, value, -Fire1617) %>%
+  ggplot(aes(Fire1617, value, fill=Fire1617)) + 
   geom_bar(position = "dodge", stat = "summary", fun = "mean") + 
   facet_wrap(~Variable, scales = "free") +
-  scale_fill_manual(values = palette2) +
+  #scale_fill_manual(values = palette2) +
   labs(x="y", y="Value", 
-       title = "Feature associations with the likelihood of taking credit",
+       title = "Feature associations with the likelihood of Wildfire",
        subtitle = "(continous outcomes)") +
   theme(legend.position = "none")
 
 # CORRELATIONS
 numericVars1 <- 
-  select_if(house_subsidy, is.numeric) %>% na.omit() %>%
-  dplyr::select(age, unemploy_rate, cons.price.idx, cons.conf.idx, inflation_rate, spent_on_repairs,y_numeric)
+  select_if(fishnet_clipped, is.numeric) %>% na.omit() %>% st_drop_geometry() %>%
+ dplyr::select(Fire1617, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
+                SEP1819_ME,OCT1819_ME, Conifer.nn, Shrub.nn, Hardwood.nn, 
+                Facilities.nn, WUI.nn)
 
 ggcorrplot(
   round(cor(numericVars1), 1), 
@@ -345,14 +394,15 @@ ggcorrplot(
   labs(title = "Correlation across Characteristics") 
 
 correlation.long <-
-  st_drop_geometry(final_net) %>%
-  dplyr::select(-uniqueID, -cvID, -NAME, -ID) %>%
-  gather(Variable, Value, -countViolations)
+  st_drop_geometry(fishnet_clipped) %>%
+  dplyr::select(-COUNTY_ABB, -COUNTY_NUM, -COUNTY_COD,-COUNTY_FIP, -ID, -Fire1819) %>%
+  gather(Variable, Value, -Fire1617)
 
+# This isn't working
 correlation.cor <-
   correlation.long %>%
   group_by(Variable) %>%
-  summarize(correlation = cor(Value, countViolations, use = "complete.obs"))
+  summarize(correlation = cor(Value, Fire1617, use = "complete.obs"))
 
 ggplot(filter(correlation.long, Variable=="Abandoned Vehicles"), aes (x=Value, y=countViolations))+  
   geom_point(size = 0.1) +
@@ -365,58 +415,62 @@ ggplot(filter(correlation.long, Variable=="Abandoned Vehicles"), aes (x=Value, y
 
 # LOGISTIC MODEL
 set.seed(3456)
-trainIndex <- createDataPartition(house_subsidy$y, p = .65, 
-                                  y = paste(house_subsidy$Education_group,house_subsidy$Age_group,house_subsidy$Season,house_subsidy$Employment,house_subsidy$taxLien),
+trainIndex <- createDataPartition(fishnet_clipped$Fire1617, p = .65, 
                                   list = FALSE,
                                   times = 1)
-housingTrain <- house_subsidy[ trainIndex,]
-housingTest  <- house_subsidy[-trainIndex,]
+fireTrain <- fishnet_clipped[ trainIndex,] %>% st_drop_geometry()
+fireTest  <- fishnet_clipped[-trainIndex,] %>% st_drop_geometry()
 
-housingModel <- glm(y_numeric ~ .,
-                    data=housingTrain %>% 
-                      dplyr::select(-y,-X, -education, -age, -Season, -job, -inflation_rate,-Unemployed,-Pdays_group,-Day),
+# Getting an error here
+fireModel <- glm(Fire1617 ~ .,
+                    data=fireTrain %>% 
+                      dplyr::select(-WUI_MAJORI,-FVEG_MAJOR,-COVER_MAJ,
+                                    -JUL1819_ME,-AUG1819_ME,-SEP1819_ME,
+                                    -OCT1819_ME,-COUNTY_ABB,-COUNTY_NUM,
+                                    -COUNTY_COD,-COUNTY_FIP,-Shape_Leng,
+                                    -Shape_Area,-ID,-CoverCat,-SlopeCat,-ElevationBi,
+                                    -Fire1819, -Facilities.nn),
                     family="binomial" (link="logit"))
 
-summary(housingModel)
+summary(fireModel)
 
 
 ## Adding Coefficients
-x <- housingModel$coefficients
+x <- fireModel$coefficients
 exp(x)
 
 
 ## Fit metrics
-pR2(kitchensink)
-pR2(housingModel)
+pR2(fireModel)
 
 ## Prediction
-testProbs <- data.frame(Outcome = as.factor(housingTest$y_numeric),
-                        Probs = predict(housingModel, housingTest, type= "response"))
+testProbs <- data.frame(Outcome = as.factor(fireTest$Fire1617),
+                        Probs = predict(fireModel, fireTest, type= "response"))
 
 # Replace NAs with average prob
-testProbs$Probs <- ifelse(is.na(testProbs$Probs), 0.1043699, testProbs$Probs) 
+#testProbs$Probs <- ifelse(is.na(testProbs$Probs), 0.1043699, testProbs$Probs) 
 
-testProbskitchensink <- data.frame(Outcome = as.factor(housingTest$y_numeric),
-                                   Probs = predict(kitchensink, housingTest, type= "response"))
+#testProbskitchensink <- data.frame(Outcome = as.factor(housingTest$y_numeric),
+                                   #Probs = predict(kitchensink, housingTest, type= "response"))
 
 #Here we want more of a hump in the bottom plot around 1 to indicate that the reg is predictive
-ggplot(testProbskitchensink, aes(x = Probs, fill = as.factor(Outcome))) + 
+ggplot(testProbs, aes(x = Probs, fill = as.factor(Outcome))) + 
   geom_density() +
   facet_grid(Outcome ~ .) +
   scale_fill_manual(values = palette2) +
-  labs(x = "Click", y = "Density of probabilities",
+  labs(x = "Fire", y = "Density of probabilities",
        title = "Distribution of predicted probabilities by observed outcome",
-       subtitle = "Kitchen Sink Model") +
+       subtitle = "First Model") +
   theme(strip.text.x = element_text(size = 18),
         legend.position = "none")
 
 ## Confusion matrix
 ### Might want to change this threshold, here a probability >50% if being predicted as takes credit
-testProbskitchensink <- 
-  testProbskitchensink %>%
-  mutate(predOutcome  = as.factor(ifelse(testProbskitchensink$Probs > 0.5 , 1, 0)))
+testProbs <- 
+  testProbs %>%
+  mutate(predOutcome  = as.factor(ifelse(testProbs$Probs > 0.5 , 1, 0)))
 
-caret::confusionMatrix(testProbskitchensink$predOutcome, testProbskitchensink$Outcome, 
+caret::confusionMatrix(testProbs$predOutcome, testProbs$Outcome, 
                        positive = "1")
 
 # ROC Curve
@@ -428,3 +482,5 @@ ggplot(testProbs, aes(d = as.numeric(testProbs$Outcome), m = Probs)) +
   style_roc(theme = theme_grey) +
   geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
   labs(title = "ROC Curve - Model with Feature Engineering")
+
+# Model Validation
