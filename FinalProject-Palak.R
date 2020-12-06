@@ -22,6 +22,7 @@ library(FNN)
 library(viridis)
 library(stargazer)
 library(riem)
+library(RANN)
 options(scipen=999)
 options(tigris_class = "sf")
 
@@ -293,8 +294,63 @@ fishnet_clipped <- fishnet_clipped %>%
 
 ## Weather
 
-weather.Panel <- 
-  riem_measures(station = c("SAC", "AUN", "GOO", "BLU", "TRK", "TVL", "BAN", "CPU", "PVF", "022", "MMH"), 
-                date_start = "2016-01-01", date_end = "2017-12-31") %>%
-  dplyr::select(station,valid, tmpf, p01i, sknt, relh)
+# vector 1 - of southern california station ids
+weather_station_ids <- c("SAC", "AUN", "GOO", "BLU", "TRK", "TVL", "BAN", "CPU", "PVF", "O22", "MMH", "BAB", "MYV",
+                         "LHM", "BIH", "JAQ", "MHR", "MCC", "SMF", "EDU", "DWA", "VCB", "SCK", "MOD", "MER", "MCE")
+
+# df - stations with lat/lon and name info (in addition to ids)
+asos_socal_stations <- riem_stations("CA_ASOS") %>% filter(str_detect(id, paste(weather_station_ids, collapse="|")))
+asos_socal_stations$weather_station_id <- asos_socal_stations$id
+asos_socal_stations <-  st_as_sf(asos_socal_stations, coords = c("lon","lat"), crs = 4326, agr = "constant") %>% st_transform('EPSG:2225')
+asos_socal_stations$ID <-  seq.int(nrow(asos_socal_stations))
+
+# function and loop -- tried it with the vector of ids and the df of all info, but neither worked. This version below uses just the vector of station ids
+get_weather_features_by_station <- function(weather_station_ids, start_year, end_year){
   
+  year_vec <- seq(start_year, end_year)
+  i <- 1
+  weather_data_list <- list()
+  for(station_id in weather_station_ids){
+    print(paste("Processing station", station_id))
+    for(year in year_vec){
+      start_date = paste0(year, "07-01")
+      end_date = paste0(year, "10-31")
+      weather_data <- riem_measures(station = station_id, date_start = start_date, date_end = end_date) %>% 
+        dplyr::summarise(weather_station_id = station_id,
+                  year = year,
+                  Max_Temp = max(tmpf),
+                  Mean_Temp = mean(tmpf, na.rm = TRUE),
+                  Mean_Precipitation = mean(p01i),
+                  Mean_Humidity = mean(relh),
+                  Mean_Wind_Speed = mean(sknt),
+        ) 
+      weather_data_list[[i]] <- weather_data
+      i <- i + 1
+    }
+  }
+  
+  do.call("rbind", weather_data_list) 
+}
+
+weather_data <- get_weather_features_by_station(weather_station_ids, 2016, 2019)
+
+weather_data <- left_join(weather_data, asos_socal_stations, on = 'weather_station_id') %>% st_sf()
+
+weath
+
+ggplot()+
+  geom_sf(data = selected_counties)+
+  geom_sf(data = weather_data)
+
+weather_coords <- 
+  asos_socal_stations %>%
+  select(geometry)
+
+fishnet_coords <- 
+  fishnet_clipped %>%
+  select(geometry)
+
+closest_weather_station_to_fishnet <- nn2(weather_coords, fishnet_coords, k = 1)$nn.idx
+
+fishnet_clipped$weatherstationid <- closest_weather_station_to_fishnet
+
