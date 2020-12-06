@@ -253,6 +253,43 @@ fishnet_clipped <-
 
 fishnet_clipped$Fire1819 <- ifelse(is.na(fishnet_clipped$Fire1819),0, fishnet_clipped$Fire1819)
 
+# FEATURE ENGINEERING
+fishnet_clipped <- fishnet_clipped %>% mutate(CoverCat = case_when(fishnet_clipped$COVER_MAJ=="1"|fishnet_clipped$COVER_MAJ=="2"|fishnet_clipped$COVER_MAJ=="4" ~ "forest",
+                                                                   fishnet_clipped$COVER_MAJ=="6"|fishnet_clipped$COVER_MAJ=="7" ~ "shrubland",
+                                                                   fishnet_clipped$COVER_MAJ=="8"|fishnet_clipped$COVER_MAJ=="9"|fishnet_clipped$COVER_MAJ=="10"~ "savanna_grassland",
+                                                                   fishnet_clipped$COVER_MAJ=="11"|fishnet_clipped$COVER_MAJ=="15"|fishnet_clipped$COVER_MAJ=="17"~ "wet",
+                                                                   fishnet_clipped$COVER_MAJ=="14"|fishnet_clipped$COVER_MAJ=="12" ~ "cropland",
+                                                                   fishnet_clipped$COVER_MAJ=="13" ~ "urban",
+                                                                   fishnet_clipped$COVER_MAJ=="17" ~ "barren"))
+
+
+fishnet_clipped <- fishnet_clipped %>% mutate(SlopeCat = case_when(fishnet_clipped$SLOPE_MEAN < 5 ~ "low",
+                                                                   fishnet_clipped$SLOPE_MEAN >=5|fishnet_clipped$SLOPE_MEAN <15 ~ "medium",
+                                                                   fishnet_clipped$SLOPE_MEAN >=15 ~ "high" ))
+
+fishnet_clipped <- fishnet_clipped %>% mutate (ElevationBi = if_else(fishnet_clipped$ELEVATION_>3000,"high","low"))
+
+conifer_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="1") %>% st_centroid()
+
+shrub_points<- fishnet_clipped %>% filter(FVEG_MAJOR=="2") %>% st_centroid()
+
+hardwood_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="6") %>% st_centroid()
+
+wui_points <- fishnet_clipped %>% filter(WUI_MAJORI=="4") %>% st_centroid()
+
+fishnet_clipped <- fishnet_clipped %>%
+  mutate(
+    Conifer.nn =
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(conifer_points),1),
+    Shrub.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(shrub_points),1),
+    Hardwood.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(hardwood_points),1),
+    Facilities.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire_suppression_facilities),3),
+    WUI.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(wui_points),1),)
+
 
 ## Weather
 
