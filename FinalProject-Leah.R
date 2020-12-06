@@ -239,6 +239,8 @@ shrub_points<- fishnet_clipped %>% filter(FVEG_MAJOR=="2") %>% st_centroid()
 
 hardwood_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="6") %>% st_centroid()
 
+wui_points <- fishnet_clipped %>% filter(WUI_MAJORI=="4") %>% st_centroid()
+
 fishnet_clipped <- fishnet_clipped %>%
   mutate(
     Conifer.nn =
@@ -248,7 +250,9 @@ fishnet_clipped <- fishnet_clipped %>%
     Hardwood.nn=
       nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(hardwood_points),1),
     Facilities.nn=
-      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire_suppression_facilities),3))
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire_suppression_facilities),3),
+    WUI.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(wui_points),1),)
 
 
 
