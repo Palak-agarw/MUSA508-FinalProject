@@ -179,7 +179,8 @@ multipleRingBuffer <- function(inputPolygon, maxDistance, interval)
 
 ## READ IN DATA
 
-fire_perimeters <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_perimeters.shp")
+fire_perimeters <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_perimeters.shp") %>%
+  filter (YEAR_=="2018" | YEAR_=="2019") %>% st_transform('EPSG:2225')
 
 fire_suppression_facilities <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_suppression_facilities.shp")
 
@@ -191,6 +192,22 @@ selected_counties <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn
 
 fishnet_clipped <- st_intersection(fishnet_unclipped,selected_counties)
 
+fishnet_clipped <- fishnet_clipped %>% dplyr::select(WUI_MAJORI,FVEG_MAJOR,ELEVATION_,
+                                                     SLOPE_MEAN,COVER_MAJ,JUL1819_ME,
+                                                     AUG1819_ME, SEP1819_ME, OCT1819_ME,
+                                                     COUNTY_NAM,COUNTY_ABB,COUNTY_NUM,
+                                                     COUNTY_COD, COUNTY_FIP,Shape_Leng,
+                                                     Shape_Area, geometry)
+
+# Adding Unique IDs for each cell
+fishnet_clipped$ID <-  seq.int(nrow(fishnet_clipped))
+                               
+# Joining Fire Perimeters to Fishnet
+
+fishnet_fires <- st_intersection(fire_perimeters,fishnet_clipped)
+fishnet_fires2 <- fire_perimeters[fishnet_clipped,]
+fishnet_fires3 <- st_intersection(fire_perimeters,fishnet_clipped)
+
 ## Creating a fishnet grid
 
 #fishnet <- 
@@ -200,6 +217,42 @@ fishnet_clipped <- st_intersection(fishnet_unclipped,selected_counties)
 
 # EXPLORATORY ANALYSIS
 
+# FEATURE ENGINEERING
+fishnet_clipped <- fishnet_clipped %>% mutate(CoverCat = case_when(fishnet_clipped$COVER_MAJ=="1"|fishnet_clipped$COVER_MAJ=="2"|fishnet_clipped$COVER_MAJ=="4" ~ "forest",
+                                              fishnet_clipped$COVER_MAJ=="6"|fishnet_clipped$COVER_MAJ=="7" ~ "shrubland",
+                                              fishnet_clipped$COVER_MAJ=="8"|fishnet_clipped$COVER_MAJ=="9"|fishnet_clipped$COVER_MAJ=="10"~ "savanna_grassland",
+                                              fishnet_clipped$COVER_MAJ=="11"|fishnet_clipped$COVER_MAJ=="15"|fishnet_clipped$COVER_MAJ=="17"~ "wet",
+                                              fishnet_clipped$COVER_MAJ=="14"|fishnet_clipped$COVER_MAJ=="12" ~ "cropland",
+                                              fishnet_clipped$COVER_MAJ=="13" ~ "urban",
+                                              fishnet_clipped$COVER_MAJ=="17" ~ "barren"))
+
+
+fishnet_clipped <- fishnet_clipped %>% mutate(SlopeCat = case_when(fishnet_clipped$SLOPE_MEAN < 5 ~ "low",
+                                                                   fishnet_clipped$SLOPE_MEAN >=5|fishnet_clipped$SLOPE_MEAN <15 ~ "medium",
+                                                                   fishnet_clipped$SLOPE_MEAN >=15 ~ "high" ))
+
+fishnet_clipped <- fishnet_clipped %>% mutate (ElevationBi = if_else(fishnet_clipped$ELEVATION_>3000,"high","low"))
+
+conifer_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="1") %>% st_centroid()
+
+shrub_points<- fishnet_clipped %>% filter(FVEG_MAJOR=="2") %>% st_centroid()
+
+hardwood_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="6") %>% st_centroid()
+
+fishnet_clipped <- fishnet_clipped %>%
+  mutate(
+    Conifer.nn =
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(conifer_points),1),
+    Shrub.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(shrub_points),1),
+    Hardwood.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(hardwood_points),1),
+    Facilities.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire_suppression_facilities),3))
+
+
+
+rowMeans(data[ , c(1,2)], na.rm=TRUE)
 # LOCAL MORAN's I
 # Join nn features to our fishnet
 ## important to drop the geometry from joining features
@@ -256,7 +309,7 @@ final_net <-
            nn_function(st_coordinates(st_centroid(final_net)),
                        st_coordinates(st_centroid(
                          filter(final_net, drugs.isSig == 1))), 1))
-# FEATURE ENGINEERING
+
 
 # DATA VISUALIZATIONS
 ##continuous variables
