@@ -21,6 +21,7 @@ library(fastDummies)
 library(FNN)
 library(viridis)
 library(stargazer)
+library(riem)
 options(scipen=999)
 options(tigris_class = "sf")
 
@@ -179,7 +180,15 @@ multipleRingBuffer <- function(inputPolygon, maxDistance, interval)
 
 ## READ IN DATA
 
-fire_perimeters <- st_read("C:/Users/agarw/Documents/MUSA508/Final/FirePerimeters/fire_perimeters.shp")
+fire_perimeters <- st_read("C:/Users/agarw/Documents/MUSA508/Final/FirePerimeters/fire_perimeters.shp")%>%
+  st_transform('EPSG:2225')
+
+fire_pt <- st_read("https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/arcgis/rest/services/California_Fire_Perimeters/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson")%>%
+  st_transform('EPSG:2225')
+
+#firept <- st_read("https://opendata.arcgis.com/datasets/f72ebe741e3b4f0db376b4e765728339_0.geojson")
+
+#https://opendata.arcgis.com/datasets/e3802d2abf8741a187e73a9db49d68fe_2.geojson
 
 fire_suppression_facilities <- st_read("C:/Users/agarw/Documents/MUSA508/Final/FireSuppressionFacilities/fire_suppression_facilities.shp")
 
@@ -193,11 +202,37 @@ fishnet_clipped <- st_intersection(fishnet_unclipped,selected_counties)
 
 ## Finding count for 2017 
 
-fire_perimeter2017 <-
-  fire_perimeters %>%
-  filter(YEAR_  == '2017')
+fire_perimeter1617 <-
+  fire_pt %>%
+  filter(YEAR_  == '2016' | YEAR_ =='2017') %>%
+  st_transform('EPSG:2225')
 
-clip <- 
-  st_intersection(fire_perimeter2017, fishnet_clipped) %>%
-  dplyr::select() %>%
-  mutate(Selection_Type = "Clip")
+ggplot() +
+  geom_sf(data = fire_pt)+
+  geom_sf(data = selected_counties, fill = 'transparent')
+
+#fire1617 <- st_union(st_make_valid(fire_perimeter16), st_make_valid(fire_perimeter17))
+#valid <- st_is_valid(fire_perimeter16)
+#fire_perimeter1 <- fire_perimeter16[valid,]
+#st_make_valid(fire_perimeter1)
+#ggplot() +
+  #geom_sf(data = fire_perimeter1)+
+  #geom_sf(data = selected_counties, fill = 'transparent')
+#valid <- st_is_valid(fire_p16)
+#fire_p16 <- fire_p16[valid,]
+#sf_extSoftVersion()["lwgeom"]
+#st_make_valid((st_is_valid(fire_perimeter16)))
+
+clip16 <- 
+  st_intersection(st_make_valid(fire_perimeter1617),st_make_valid(fishnet_clipped)) %>%
+  mutate(Fire1617 = 1)
+
+length(st_intersects(st_make_valid(fire_perimeter1617),st_make_valid(fishnet_clipped)))
+
+## Weather
+
+weather.Panel <- 
+  riem_measures(station = c("SAC", "AUN", "GOO", "BLU", "TRK", "TVL", "BAN", "CPU", "PVF", "022", "MMH"), 
+                date_start = "2016-01-01", date_end = "2017-12-31") %>%
+  dplyr::select(station,valid, tmpf, p01i, sknt, relh)
+  
