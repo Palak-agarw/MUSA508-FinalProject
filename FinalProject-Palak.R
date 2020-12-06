@@ -200,34 +200,63 @@ selected_counties <- st_read("C:/Users/agarw/Documents/MUSA508/Final/SelectedCou
 
 fishnet_clipped <- st_intersection(fishnet_unclipped,selected_counties)
 
-## Finding count for 2017 
+fishnet_clipped <- fishnet_clipped %>% dplyr::select(WUI_MAJORI,FVEG_MAJOR,ELEVATION_,
+                                                     SLOPE_MEAN,COVER_MAJ,JUL1819_ME,
+                                                     AUG1819_ME, SEP1819_ME, OCT1819_ME,
+                                                     COUNTY_NAM,COUNTY_ABB,COUNTY_NUM,
+                                                     COUNTY_COD, COUNTY_FIP,Shape_Leng,
+                                                     Shape_Area, geometry)
 
+# Adding Unique IDs for each cell
+fishnet_clipped$ID <-  seq.int(nrow(fishnet_clipped))
+
+## Finding fire data to fishnets 
+###2016-17
 fire_perimeter1617 <-
   fire_pt %>%
   filter(YEAR_  == '2016' | YEAR_ =='2017') %>%
   st_transform('EPSG:2225')
 
 ggplot() +
-  geom_sf(data = fire_pt)+
+  geom_sf(data = fire_perimeter1617)+
   geom_sf(data = selected_counties, fill = 'transparent')
 
-#fire1617 <- st_union(st_make_valid(fire_perimeter16), st_make_valid(fire_perimeter17))
-#valid <- st_is_valid(fire_perimeter16)
-#fire_perimeter1 <- fire_perimeter16[valid,]
-#st_make_valid(fire_perimeter1)
-#ggplot() +
-  #geom_sf(data = fire_perimeter1)+
-  #geom_sf(data = selected_counties, fill = 'transparent')
-#valid <- st_is_valid(fire_p16)
-#fire_p16 <- fire_p16[valid,]
-#sf_extSoftVersion()["lwgeom"]
-#st_make_valid((st_is_valid(fire_perimeter16)))
-
-clip16 <- 
+clip1617 <- 
   st_intersection(st_make_valid(fire_perimeter1617),st_make_valid(fishnet_clipped)) %>%
-  mutate(Fire1617 = 1)
+  select(ID) %>%
+  st_drop_geometry() %>%
+  mutate(Fire1617 = 1) %>%
+  distinct()
 
-length(st_intersects(st_make_valid(fire_perimeter1617),st_make_valid(fishnet_clipped)))
+fishnet_clipped <-
+  fishnet_clipped %>%
+  left_join(., clip1617, on= 'ID') 
+
+fishnet_clipped$Fire1617 <- ifelse(is.na(fishnet_clipped$Fire1617),0, fishnet_clipped$Fire1617)
+
+###2018-19
+fire_perimeter1819 <-
+  fire_pt %>%
+  filter(YEAR_  == '2018' | YEAR_ =='2019') %>%
+  st_transform('EPSG:2225')
+
+ggplot() +
+  geom_sf(data = fire_perimeter1819)+
+  geom_sf(data = selected_counties, fill = 'transparent')
+
+clip1819 <- 
+  st_intersection(st_make_valid(fire_perimeter1819),st_make_valid(fishnet_clipped)) %>%
+  select(ID) %>%
+  st_drop_geometry() %>%
+  mutate(Fire1819 = 1) %>%
+  distinct()
+
+fishnet_clipped <-
+  fishnet_clipped %>%
+  left_join(., clip1819, on= 'ID') 
+
+fishnet_clipped$Fire1819 <- ifelse(is.na(fishnet_clipped$Fire1819),0, fishnet_clipped$Fire1819)
+
 
 ## Weather
 
