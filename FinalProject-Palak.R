@@ -180,15 +180,11 @@ multipleRingBuffer <- function(inputPolygon, maxDistance, interval)
 
 ## READ IN DATA
 
-fire_perimeters <- st_read("C:/Users/agarw/Documents/MUSA508/Final/FirePerimeters/fire_perimeters.shp")%>%
-  st_transform('EPSG:2225')
+#fire_perimeters <- st_read("C:/Users/agarw/Documents/MUSA508/Final/FirePerimeters/fire_perimeters.shp")%>%
+  #st_transform('EPSG:2225')
 
 fire_pt <- st_read("https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/arcgis/rest/services/California_Fire_Perimeters/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson")%>%
   st_transform('EPSG:2225')
-
-#firept <- st_read("https://opendata.arcgis.com/datasets/f72ebe741e3b4f0db376b4e765728339_0.geojson")
-
-#https://opendata.arcgis.com/datasets/e3802d2abf8741a187e73a9db49d68fe_2.geojson
 
 fire_suppression_facilities <- st_read("C:/Users/agarw/Documents/MUSA508/Final/FireSuppressionFacilities/fire_suppression_facilities.shp")
 
