@@ -179,209 +179,25 @@ multipleRingBuffer <- function(inputPolygon, maxDistance, interval)
 
 ## READ IN DATA
 
-calfire_admin_boundaries_northsouth <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/calfire_admin_boundaries_northsouth.shp") 
+fire_perimeters <- st_read("C:/Users/agarw/Documents/MUSA508/Final/FirePerimeters/fire_perimeters.shp")
 
-calfire_admin_boundaries_unit <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/calfire_admin_boundaries_unit.shp") 
+fire_suppression_facilities <- st_read("C:/Users/agarw/Documents/MUSA508/Final/FireSuppressionFacilities/fire_suppression_facilities.shp")
 
-fire_perimeters <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_perimeters.shp")
+fishnet_unclipped <- st_read("C:/Users/agarw/Documents/MUSA508/Final/Fishnet/fishnet_halfmile_joins.shp") %>%
+  st_transform('EPSG:2225')
 
-ggplot() +
-  geom_sf(data = fire_perimeters) + 
-  geom_sf(aes=(fill="YEAR_")) +
-  mapTheme()
+selected_counties <- st_read("C:/Users/agarw/Documents/MUSA508/Final/SelectedCounties/selected_counties.shp") %>%
+  st_transform('EPSG:2225')
 
-counties <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/counties.shp")
+fishnet_clipped <- st_intersection(fishnet_unclipped,selected_counties)
 
-ggplot() +
-  geom_sf(data = counties)
+## Finding count for 2017 
 
-fire_suppression_facilities <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_suppression_facilities.shp")
+fire_perimeter2017 <-
+  fire_perimeters %>%
+  filter(YEAR_  == '2017')
 
-fire_hazard_severity_zones <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_hazard_severity_zones.shp")
-
-fishnet <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/zonal_fishnet.shp") %>%
-  dplyr::select(-Id, -OBJECTID, -FID_1, -OBJECTID_1, -FID_12,-Rowid_, -FID_12_13,
-                -Rowid_1,-FID_12__14,-Rowid_12,-FID_12__15,-Rowid_1_13, -FID_12__16,
-                -Rowid_1_14, -FID_12__17)
-
-
-## Creating a fishnet grid
-
-#fishnet <- 
-# st_make_grid(counties, cellsize = 5280) %>%
-#st_sf() %>%
-#mutate(uniqueID = rownames(.))
-
-# EXPLORATORY ANALYSIS
-
-# LOCAL MORAN's I
-# Join nn features to our fishnet
-## important to drop the geometry from joining features
-final_net <-
-  left_join(crime_net, st_drop_geometry(vars_net), by="uniqueID")
-
-final_net <-
-  st_centroid(final_net) %>%
-  st_join(dplyr::select(Neighborhoods, NAME), by = "uniqueID") %>%
-  st_join(dplyr::select(PoliceDistricts, ID), by = "uniqueID") %>%
-  st_drop_geometry() %>%
-  left_join(dplyr::select(final_net, geometry, uniqueID)) %>%
-  st_sf() %>%
-  na.omit()
-
-## Local Moran's I for fishnet grid cells
-## generates warnings from PROJ issues
-## {spdep} to make polygon to neighborhoods... 
-final_net.nb <- poly2nb(as_Spatial(final_net), queen=TRUE)
-## ... and neighborhoods to list of weigths
-final_net.weights <- nb2listw(final_net.nb, style="W", zero.policy=TRUE)
-
-final_net.localMorans <- 
-  cbind(
-    as.data.frame(localmoran(final_net$countViolations, final_net.weights)),
-    as.data.frame(final_net)) %>% 
-  st_sf() %>%
-  dplyr::select(Violations_Count = countViolations, 
-                Local_Morans_I = Ii, 
-                P_Value = `Pr(z > 0)`) %>%
-  mutate(Significant_Hotspots = ifelse(P_Value <= 0.05, 1, 0)) %>%
-  gather(Variable, Value, -geometry)
-
-vars <- unique(final_net.localMorans$Variable)
-varList <- list()
-
-for(i in vars){
-  varList[[i]] <- 
-    ggplot() +
-    geom_sf(data = filter(final_net.localMorans, Variable == i), 
-            aes(fill = Value), colour=NA) +
-    scale_fill_viridis(name="") +
-    labs(title=i) +
-    mapTheme() + theme(legend.position="bottom")}
-
-do.call(grid.arrange,c(varList, ncol = 4, top = "Local Morans I statistics, Drug Violations"))
-
-final_net <-
-  final_net %>% 
-  mutate(drugs.isSig = 
-           ifelse(localmoran(final_net$countViolations, 
-                             final_net.weights)[,5] <= 0.0000001, 1, 0)) %>%
-  mutate(drugs.isSig.dist = 
-           nn_function(st_coordinates(st_centroid(final_net)),
-                       st_coordinates(st_centroid(
-                         filter(final_net, drugs.isSig == 1))), 1))
-# FEATURE ENGINEERING
-
-# DATA VISUALIZATIONS
-##continuous variables
-house_subsidy %>%
-  dplyr::select(y,unemploy_rate, spent_on_repairs, age, campaign, 
-                previous,cons.price.idx,cons.conf.idx) %>%
-  rename("Unemployment Rate" = unemploy_rate, "$ Spent on Repairs" = spent_on_repairs, "Age of Homeowner"=age, "# of contacts"=campaign, "# of previous contacts"=previous, "Cons. Price Index"=cons.price.idx, "Cons. Conf. Index"=cons.conf.idx) %>%
-  gather(Variable, value, -y) %>%
-  ggplot(aes(y, value, fill=y)) + 
-  geom_bar(position = "dodge", stat = "summary", fun = "mean") + 
-  facet_wrap(~Variable, scales = "free") +
-  scale_fill_manual(values = palette2) +
-  labs(x="y", y="Value", 
-       title = "Feature associations with the likelihood of taking credit",
-       subtitle = "(continous outcomes)") +
-  theme(legend.position = "none")
-
-# CORRELATIONS
-numericVars1 <- 
-  select_if(house_subsidy, is.numeric) %>% na.omit() %>%
-  dplyr::select(age, unemploy_rate, cons.price.idx, cons.conf.idx, inflation_rate, spent_on_repairs,y_numeric)
-
-ggcorrplot(
-  round(cor(numericVars1), 1), 
-  p.mat = cor_pmat(numericVars1),
-  colors = c("#25CB10", "white", "#FA7800"),
-  type="lower",
-  insig = "blank") +  
-  labs(title = "Correlation across Characteristics") 
-
-correlation.long <-
-  st_drop_geometry(final_net) %>%
-  dplyr::select(-uniqueID, -cvID, -NAME, -ID) %>%
-  gather(Variable, Value, -countViolations)
-
-correlation.cor <-
-  correlation.long %>%
-  group_by(Variable) %>%
-  summarize(correlation = cor(Value, countViolations, use = "complete.obs"))
-
-ggplot(filter(correlation.long, Variable=="Abandoned Vehicles"), aes (x=Value, y=countViolations))+  
-  geom_point(size = 0.1) +
-  geom_text(data = filter(correlation.cor,Variable=="Abandoned Vehicles"), check_overlap=TRUE, aes(label = paste("r = ", round(correlation, 2))),
-            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
-  geom_smooth(method = "lm", se = FALSE, colour = "black") +
-  xlab("Abandoned Vehicles") + ylab("Drug Violations") +
-  plotTheme()
-
-
-# LOGISTIC MODEL
-set.seed(3456)
-trainIndex <- createDataPartition(house_subsidy$y, p = .65, 
-                                  y = paste(house_subsidy$Education_group,house_subsidy$Age_group,house_subsidy$Season,house_subsidy$Employment,house_subsidy$taxLien),
-                                  list = FALSE,
-                                  times = 1)
-housingTrain <- house_subsidy[ trainIndex,]
-housingTest  <- house_subsidy[-trainIndex,]
-
-housingModel <- glm(y_numeric ~ .,
-                    data=housingTrain %>% 
-                      dplyr::select(-y,-X, -education, -age, -Season, -job, -inflation_rate,-Unemployed,-Pdays_group,-Day),
-                    family="binomial" (link="logit"))
-
-summary(housingModel)
-
-
-## Adding Coefficients
-x <- housingModel$coefficients
-exp(x)
-
-
-## Fit metrics
-pR2(kitchensink)
-pR2(housingModel)
-
-## Prediction
-testProbs <- data.frame(Outcome = as.factor(housingTest$y_numeric),
-                        Probs = predict(housingModel, housingTest, type= "response"))
-
-# Replace NAs with average prob
-testProbs$Probs <- ifelse(is.na(testProbs$Probs), 0.1043699, testProbs$Probs) 
-
-testProbskitchensink <- data.frame(Outcome = as.factor(housingTest$y_numeric),
-                                   Probs = predict(kitchensink, housingTest, type= "response"))
-
-#Here we want more of a hump in the bottom plot around 1 to indicate that the reg is predictive
-ggplot(testProbskitchensink, aes(x = Probs, fill = as.factor(Outcome))) + 
-  geom_density() +
-  facet_grid(Outcome ~ .) +
-  scale_fill_manual(values = palette2) +
-  labs(x = "Click", y = "Density of probabilities",
-       title = "Distribution of predicted probabilities by observed outcome",
-       subtitle = "Kitchen Sink Model") +
-  theme(strip.text.x = element_text(size = 18),
-        legend.position = "none")
-
-## Confusion matrix
-### Might want to change this threshold, here a probability >50% if being predicted as takes credit
-testProbskitchensink <- 
-  testProbskitchensink %>%
-  mutate(predOutcome  = as.factor(ifelse(testProbskitchensink$Probs > 0.5 , 1, 0)))
-
-caret::confusionMatrix(testProbskitchensink$predOutcome, testProbskitchensink$Outcome, 
-                       positive = "1")
-
-# ROC Curve
-## This us a goodness of fit measure, 1 would be a perfect fit, .5 is a coin toss
-auc(testProbs$Outcome, testProbs$Probs)
-
-ggplot(testProbs, aes(d = as.numeric(testProbs$Outcome), m = Probs)) +
-  geom_roc(n.cuts = 50, labels = FALSE, colour = "#FE9900") +
-  style_roc(theme = theme_grey) +
-  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
-  labs(title = "ROC Curve - Model with Feature Engineering")
+clip <- 
+  st_intersection(fire_perimeter2017, fishnet_clipped) %>%
+  dplyr::select() %>%
+  mutate(Selection_Type = "Clip")
