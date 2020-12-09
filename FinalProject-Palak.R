@@ -192,7 +192,10 @@ fire_suppression_facilities <- st_read("C:/Users/agarw/Documents/MUSA508/Final/F
 fishnet_unclipped <- st_read("C:/Users/agarw/Documents/MUSA508/Final/Fishnet/fishnet_halfmile_joins.shp") %>%
   st_transform('EPSG:2225')
 
-selected_counties <- st_read("C:/Users/agarw/Documents/MUSA508/Final/SelectedCounties/selected_counties.shp") %>%
+selected_counties <- st_read("https://opendata.arcgis.com/datasets/a61c138d0a6946da8d1ebb8d1c9db13a_0.geojson") %>%
+  filter(COUNTY_NAME == 'Del Norte' | COUNTY_NAME == 'Siskiyou' | COUNTY_NAME == 'Humboldt' | COUNTY_NAME == 'Trinity' |
+            COUNTY_NAME == 'Shasta' | COUNTY_NAME == 'Tehama' | COUNTY_NAME == 'Mendocino' | COUNTY_NAME == 'Glenn' |
+            COUNTY_NAME == 'Lake' | COUNTY_NAME == 'Colusa' | COUNTY_NAME == 'Sonoma' |COUNTY_NAME == 'Napa' | COUNTY_NAME == 'Yolo') %>%
   st_transform('EPSG:2225')
 
 fishnet_clipped <- st_intersection(fishnet_unclipped,selected_counties)
@@ -295,8 +298,8 @@ fishnet_clipped <- fishnet_clipped %>%
 ## Weather
 
 # vector 1 - of southern california station ids
-weather_station_ids <- c("SAC", "AUN", "GOO", "BLU", "TRK", "TVL", "BAN", "CPU", "PVF", "O22", "MMH", "BAB", "MYV",
-                         "LHM", "BIH", "JAQ", "MHR", "MCC", "SMF", "EDU", "DWA", "VCB", "SCK", "MOD", "MER", "MCE")
+weather_station_ids <- c("SIY", "CEC", "MHS", "O86", "ACV", "O54", "EKA", "FOT", "O87", "RDD", "RBL", "CIC", "OVE",
+                         "UKI", "MYV", "STS", "O69", "DVO", "APC", "SUU", "VCB", "DWA", "EDU", "SMF", "LHM", "MYV")
 
 # df - stations with lat/lon and name info (in addition to ids)
 asos_socal_stations <- riem_stations("CA_ASOS") %>% filter(str_detect(id, paste(weather_station_ids, collapse="|")))
@@ -315,7 +318,11 @@ fishnet_coords <-
 
 closest_weather_station_to_fishnet <- nn2(weather_coords, fishnet_coords, k = 1)$nn.idx
 
-fishnet_clipped$weatherstationid <- closest_weather_station_to_fishnet
+fishnet_clipped$ID <- closest_weather_station_to_fishnet
+
+ggplot()+
+  geom_sf(data = selected_counties)+
+  geom_sf(data = weather_data)
 
 # function and loop -- tried it with the vector of ids and the df of all info, but neither worked. This version below uses just the vector of station ids
 get_weather_features_by_station <- function(weather_station_ids, start_year, end_year){
@@ -331,11 +338,11 @@ get_weather_features_by_station <- function(weather_station_ids, start_year, end
       weather_data <- riem_measures(station = station_id, date_start = start_date, date_end = end_date) %>% 
         dplyr::summarise(weather_station_id = station_id,
                   year = year,
-                  Max_Temp14 = max(tmpf, na.rm = TRUE),
-                  Mean_Temp14 = mean(tmpf, na.rm = TRUE),
-                  Mean_Precipitation14 = mean(p01i, na.rm = TRUE),
-                  Mean_Humidity14 = mean(relh, na.rm = TRUE),
-                  Mean_Wind_Speed14 = mean(sknt, na.rm = TRUE),
+                  Max_Temp = max(tmpf, na.rm = TRUE),
+                  Mean_Temp = mean(tmpf, na.rm = TRUE),
+                  Mean_Precipitation = mean(p01i, na.rm = TRUE),
+                  Mean_Humidity = mean(relh, na.rm = TRUE),
+                  Mean_Wind_Speed = mean(sknt, na.rm = TRUE),
         ) 
       weather_data_list[[i]] <- weather_data
       i <- i + 1
@@ -345,24 +352,74 @@ get_weather_features_by_station <- function(weather_station_ids, start_year, end
   do.call("rbind", weather_data_list) 
 }
 
-#weather_data <- get_weather_features_by_station(weather_station_ids, 2014, 2019)
+weather_data2014 <- get_weather_features_by_station(weather_station_ids, 2014, 2014) %>%
+  rename(Max_Temp14 = Max_Temp,
+         Mean_Temp14 = Mean_Temp,
+         Mean_Precipitation14 = Mean_Precipitation,
+         Mean_Humidity14 = Mean_Humidity,
+         Mean_Wind_Speed14 = Mean_Wind_Speed)
 
-#weather_data <- left_join(weather_data, asos_socal_stations, on = 'weather_station_id') %>% st_sf()
+weather_2014 <- left_join(weather_data2014, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry) 
 
-ggplot()+
-  geom_sf(data = selected_counties)+
-  geom_sf(data = weather_data)
+fishnet_clipped <- left_join(fishnet_clipped, weather_2014, on = "ID")
 
-#weather_clean <- 
-  #weather_data %>%
-  #select(-weather_station_id, -id, -name) %>%
-  #st_drop_geometry() %>%
-  #distinct()
+weather_data2015 <- get_weather_features_by_station(weather_station_ids, 2015, 2015) %>%
+  rename(Max_Temp15 = Max_Temp,
+         Mean_Temp15 = Mean_Temp,
+         Mean_Precipitation15 = Mean_Precipitation,
+         Mean_Humidity15 = Mean_Humidity,
+         Mean_Wind_Speed15 = Mean_Wind_Speed)
 
-#weather_wide <- spread(weather_clean, year, ID)
+weather_2015 <- left_join(weather_data2015, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry) 
 
-weather_data2014 <- get_weather_features_by_station(weather_station_ids, 2014, 2014)
+fishnet_clipped <- left_join(fishnet_clipped, weather_2015, on = "ID")
 
-weather_2014 <- left_join(weather_data2014, asos_socal_stations, on = 'weather_station_id')
+weather_data2016 <- get_weather_features_by_station(weather_station_ids, 2016, 2016) %>%
+  rename(Max_Temp16 = Max_Temp,
+         Mean_Temp16 = Mean_Temp,
+         Mean_Precipitation16 = Mean_Precipitation,
+         Mean_Humidity16 = Mean_Humidity,
+         Mean_Wind_Speed16 = Mean_Wind_Speed)
 
+weather_2016 <- left_join(weather_data2016, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry) 
 
+fishnet_clipped <- left_join(fishnet_clipped, weather_2016, on = "ID")
+
+weather_data2017 <- get_weather_features_by_station(weather_station_ids, 2017, 2017) %>%
+  rename(Max_Temp17 = Max_Temp,
+         Mean_Temp17 = Mean_Temp,
+         Mean_Precipitation17 = Mean_Precipitation,
+         Mean_Humidity17 = Mean_Humidity,
+         Mean_Wind_Speed17 = Mean_Wind_Speed)
+
+weather_2017 <- left_join(weather_data2017, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry) 
+
+fishnet_clipped <- left_join(fishnet_clipped, weather_2017, on = "ID")
+
+weather_data2018 <- get_weather_features_by_station(weather_station_ids, 2018, 2018) %>%
+  rename(Max_Temp18 = Max_Temp,
+         Mean_Temp18 = Mean_Temp,
+         Mean_Precipitation18 = Mean_Precipitation,
+         Mean_Humidity18 = Mean_Humidity,
+         Mean_Wind_Speed18 = Mean_Wind_Speed)
+
+weather_2018 <- left_join(weather_data2018, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry) 
+
+fishnet_clipped <- left_join(fishnet_clipped, weather_2018, on = "ID")
+
+weather_data2019 <- get_weather_features_by_station(weather_station_ids, 2019, 2019) %>%
+  rename(Max_Temp19 = Max_Temp,
+         Mean_Temp19 = Mean_Temp,
+         Mean_Precipitation19 = Mean_Precipitation,
+         Mean_Humidity19 = Mean_Humidity,
+         Mean_Wind_Speed19 = Mean_Wind_Speed)
+
+weather_2019 <- left_join(weather_data2019, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry) 
+
+fishnet_clipped <- left_join(fishnet_clipped, weather_2019, on = "ID")
