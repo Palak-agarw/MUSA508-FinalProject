@@ -304,6 +304,19 @@ asos_socal_stations$weather_station_id <- asos_socal_stations$id
 asos_socal_stations <-  st_as_sf(asos_socal_stations, coords = c("lon","lat"), crs = 4326, agr = "constant") %>% st_transform('EPSG:2225')
 asos_socal_stations$ID <-  seq.int(nrow(asos_socal_stations))
 
+## Finding closest station
+weather_coords <- 
+  asos_socal_stations %>%
+  select(geometry)
+
+fishnet_coords <- 
+  fishnet_clipped %>%
+  select(geometry)
+
+closest_weather_station_to_fishnet <- nn2(weather_coords, fishnet_coords, k = 1)$nn.idx
+
+fishnet_clipped$weatherstationid <- closest_weather_station_to_fishnet
+
 # function and loop -- tried it with the vector of ids and the df of all info, but neither worked. This version below uses just the vector of station ids
 get_weather_features_by_station <- function(weather_station_ids, start_year, end_year){
   
@@ -318,11 +331,11 @@ get_weather_features_by_station <- function(weather_station_ids, start_year, end
       weather_data <- riem_measures(station = station_id, date_start = start_date, date_end = end_date) %>% 
         dplyr::summarise(weather_station_id = station_id,
                   year = year,
-                  Max_Temp = max(tmpf),
-                  Mean_Temp = mean(tmpf, na.rm = TRUE),
-                  Mean_Precipitation = mean(p01i),
-                  Mean_Humidity = mean(relh),
-                  Mean_Wind_Speed = mean(sknt),
+                  Max_Temp14 = max(tmpf, na.rm = TRUE),
+                  Mean_Temp14 = mean(tmpf, na.rm = TRUE),
+                  Mean_Precipitation14 = mean(p01i, na.rm = TRUE),
+                  Mean_Humidity14 = mean(relh, na.rm = TRUE),
+                  Mean_Wind_Speed14 = mean(sknt, na.rm = TRUE),
         ) 
       weather_data_list[[i]] <- weather_data
       i <- i + 1
@@ -332,25 +345,24 @@ get_weather_features_by_station <- function(weather_station_ids, start_year, end
   do.call("rbind", weather_data_list) 
 }
 
-weather_data <- get_weather_features_by_station(weather_station_ids, 2016, 2019)
+#weather_data <- get_weather_features_by_station(weather_station_ids, 2014, 2019)
 
-weather_data <- left_join(weather_data, asos_socal_stations, on = 'weather_station_id') %>% st_sf()
-
-weath
+#weather_data <- left_join(weather_data, asos_socal_stations, on = 'weather_station_id') %>% st_sf()
 
 ggplot()+
   geom_sf(data = selected_counties)+
   geom_sf(data = weather_data)
 
-weather_coords <- 
-  asos_socal_stations %>%
-  select(geometry)
+#weather_clean <- 
+  #weather_data %>%
+  #select(-weather_station_id, -id, -name) %>%
+  #st_drop_geometry() %>%
+  #distinct()
 
-fishnet_coords <- 
-  fishnet_clipped %>%
-  select(geometry)
+#weather_wide <- spread(weather_clean, year, ID)
 
-closest_weather_station_to_fishnet <- nn2(weather_coords, fishnet_coords, k = 1)$nn.idx
+weather_data2014 <- get_weather_features_by_station(weather_station_ids, 2014, 2014)
 
-fishnet_clipped$weatherstationid <- closest_weather_station_to_fishnet
+weather_2014 <- left_join(weather_data2014, asos_socal_stations, on = 'weather_station_id')
+
 
