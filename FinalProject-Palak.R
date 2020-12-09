@@ -210,89 +210,51 @@ fishnet_clipped <- fishnet_clipped %>% dplyr::select(WUI_MAJORI,FVEG_MAJOR,ELEVA
 fishnet_clipped$ID <-  seq.int(nrow(fishnet_clipped))
 
 ## Finding fire data to fishnets 
-###2016-17
-fire_perimeter1617 <-
+###2014-18
+fire_perimeter1418 <-
   fire_pt %>%
-  filter(YEAR_  == '2016' | YEAR_ =='2017') %>%
+  filter(YEAR_  == '2014' | YEAR_  == '2015' | YEAR_  == '2016' | YEAR_ =='2017' | YEAR_  == '2018') %>%
   st_transform('EPSG:2225')
 
 ggplot() +
-  geom_sf(data = fire_perimeter1617)+
+  geom_sf(data = fire_perimeter1418)+
   geom_sf(data = selected_counties, fill = 'transparent')
 
-clip1617 <- 
-  st_intersection(st_make_valid(fire_perimeter1617),st_make_valid(fishnet_clipped)) %>%
+clip1418 <- 
+  st_intersection(st_make_valid(fire_perimeter1418),st_make_valid(fishnet_clipped)) %>%
   select(ID) %>%
   st_drop_geometry() %>%
-  mutate(Fire1617 = 1) %>%
+  mutate(Fire1418 = 1) %>%
   distinct()
 
 fishnet_clipped <-
   fishnet_clipped %>%
-  left_join(., clip1617, on= 'ID') 
+  left_join(., clip1418, on= 'ID') 
 
-fishnet_clipped$Fire1617 <- ifelse(is.na(fishnet_clipped$Fire1617),0, fishnet_clipped$Fire1617)
+fishnet_clipped$Fire1418 <- ifelse(is.na(fishnet_clipped$Fire1418),0, fishnet_clipped$Fire1418)
 
-###2018-19
-fire_perimeter1819 <-
+###2019
+fire_perimeter19 <-
   fire_pt %>%
-  filter(YEAR_  == '2018' | YEAR_ =='2019') %>%
+  filter(YEAR_ =='2019') %>%
   st_transform('EPSG:2225')
 
 ggplot() +
-  geom_sf(data = fire_perimeter1819)+
+  geom_sf(data = fire_perimeter19)+
   geom_sf(data = selected_counties, fill = 'transparent')
 
-clip1819 <- 
-  st_intersection(st_make_valid(fire_perimeter1819),st_make_valid(fishnet_clipped)) %>%
+clip19 <- 
+  st_intersection(st_make_valid(fire_perimeter19),st_make_valid(fishnet_clipped)) %>%
   select(ID) %>%
   st_drop_geometry() %>%
-  mutate(Fire1819 = 1) %>%
+  mutate(Fire19 = 1) %>%
   distinct()
 
 fishnet_clipped <-
   fishnet_clipped %>%
-  left_join(., clip1819, on= 'ID') 
+  left_join(., clip19, on= 'ID') 
 
-fishnet_clipped$Fire1819 <- ifelse(is.na(fishnet_clipped$Fire1819),0, fishnet_clipped$Fire1819)
-
-# FEATURE ENGINEERING
-fishnet_clipped <- fishnet_clipped %>% mutate(CoverCat = case_when(fishnet_clipped$COVER_MAJ=="1"|fishnet_clipped$COVER_MAJ=="2"|fishnet_clipped$COVER_MAJ=="4" ~ "forest",
-                                                                   fishnet_clipped$COVER_MAJ=="6"|fishnet_clipped$COVER_MAJ=="7" ~ "shrubland",
-                                                                   fishnet_clipped$COVER_MAJ=="8"|fishnet_clipped$COVER_MAJ=="9"|fishnet_clipped$COVER_MAJ=="10"~ "savanna_grassland",
-                                                                   fishnet_clipped$COVER_MAJ=="11"|fishnet_clipped$COVER_MAJ=="15"|fishnet_clipped$COVER_MAJ=="17"~ "wet",
-                                                                   fishnet_clipped$COVER_MAJ=="14"|fishnet_clipped$COVER_MAJ=="12" ~ "cropland",
-                                                                   fishnet_clipped$COVER_MAJ=="13" ~ "urban",
-                                                                   fishnet_clipped$COVER_MAJ=="17" ~ "barren"))
-
-
-fishnet_clipped <- fishnet_clipped %>% mutate(SlopeCat = case_when(fishnet_clipped$SLOPE_MEAN < 5 ~ "low",
-                                                                   fishnet_clipped$SLOPE_MEAN >=5|fishnet_clipped$SLOPE_MEAN <15 ~ "medium",
-                                                                   fishnet_clipped$SLOPE_MEAN >=15 ~ "high" ))
-
-fishnet_clipped <- fishnet_clipped %>% mutate (ElevationBi = if_else(fishnet_clipped$ELEVATION_>3000,"high","low"))
-
-conifer_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="1") %>% st_centroid()
-
-shrub_points<- fishnet_clipped %>% filter(FVEG_MAJOR=="2") %>% st_centroid()
-
-hardwood_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="6") %>% st_centroid()
-
-wui_points <- fishnet_clipped %>% filter(WUI_MAJORI=="4") %>% st_centroid()
-
-fishnet_clipped <- fishnet_clipped %>%
-  mutate(
-    Conifer.nn =
-      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(conifer_points),1),
-    Shrub.nn=
-      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(shrub_points),1),
-    Hardwood.nn=
-      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(hardwood_points),1),
-    Facilities.nn=
-      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire_suppression_facilities),3),
-    WUI.nn=
-      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(wui_points),1),)
-
+fishnet_clipped$Fire19 <- ifelse(is.na(fishnet_clipped$Fire19),0, fishnet_clipped$Fire19)
 
 ## Weather
 
@@ -422,3 +384,210 @@ weather_2019 <- left_join(weather_data2019, asos_socal_stations, on = 'weather_s
   select (-weather_station_id, -id, -name, -year, -geometry) 
 
 fishnet_clipped <- left_join(fishnet_clipped, weather_2019, on = "ID")
+
+# EXPLORATORY ANALYSIS
+
+# FEATURE ENGINEERING
+## Changing Integers to Characters
+### 15 0s (na) here
+fishnet_clipped$WUI_MAJORI <- as.factor(fishnet_clipped$WUI_MAJORI)
+
+### 1 0 (na) here
+fishnet_clipped$FVEG_MAJOR <- as.factor(fishnet_clipped$FVEG_MAJOR)
+
+fishnet_clipped$COVER_MAJ <- as.factor(fishnet_clipped$COVER_MAJ)
+
+## Fire in last 5 years
+fire_perimeter1013 <-
+  fire_pt %>%
+  filter(YEAR_  == '2010' | YEAR_ =='2011'| YEAR_ =='2012'| YEAR_ =='2013') %>%
+  st_transform('EPSG:2225')
+
+ggplot() +
+  geom_sf(data = fire_perimeter1015, fill="orange")+
+  geom_sf(data = selected_counties, fill = 'transparent')
+
+clip1015 <- 
+  st_intersection(st_make_valid(fire_perimeter1013),st_make_valid(fishnet_clipped)) %>%
+  select(ID) %>%
+  st_drop_geometry() %>%
+  mutate(Fire1013 = 1) %>%
+  distinct()
+
+fishnet_clipped <-
+  fishnet_clipped %>%
+  left_join(., clip1015, on= 'ID') 
+
+fishnet_clipped$Fire1015 <- ifelse(is.na(fishnet_clipped$Fire1013),0, fishnet_clipped$Fire1013)
+
+## Historical fire
+
+
+
+## Categorical Features
+fishnet_clipped <- fishnet_clipped %>% mutate(CoverCat = case_when(fishnet_clipped$COVER_MAJ=="1"|fishnet_clipped$COVER_MAJ=="2"|fishnet_clipped$COVER_MAJ=="4" ~ "forest",
+                                                                   fishnet_clipped$COVER_MAJ=="6"|fishnet_clipped$COVER_MAJ=="7" ~ "shrubland",
+                                                                   fishnet_clipped$COVER_MAJ=="8"|fishnet_clipped$COVER_MAJ=="9"|fishnet_clipped$COVER_MAJ=="10"~ "savanna_grassland",
+                                                                   fishnet_clipped$COVER_MAJ=="11"|fishnet_clipped$COVER_MAJ=="15"|fishnet_clipped$COVER_MAJ=="17"~ "wet",
+                                                                   fishnet_clipped$COVER_MAJ=="14"|fishnet_clipped$COVER_MAJ=="12" ~ "cropland",
+                                                                   fishnet_clipped$COVER_MAJ=="13" ~ "urban",
+                                                                   fishnet_clipped$COVER_MAJ=="17" ~ "barren"))
+
+
+fishnet_clipped <- fishnet_clipped %>% mutate(SlopeCat = case_when(fishnet_clipped$SLOPE_MEAN < 5 ~ "low",
+                                                                   fishnet_clipped$SLOPE_MEAN >=5|fishnet_clipped$SLOPE_MEAN <15 ~ "medium",
+                                                                   fishnet_clipped$SLOPE_MEAN >=15 ~ "high" ))
+
+## Dummy Feature
+fishnet_clipped <- fishnet_clipped %>% mutate (ElevationBi = if_else(fishnet_clipped$ELEVATION_>3000,1,0))
+
+## Nearest Neighbor Features
+conifer_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="1") %>% st_centroid()
+
+shrub_points<- fishnet_clipped %>% filter(FVEG_MAJOR=="2") %>% st_centroid()
+
+hardwood_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="6") %>% st_centroid()
+
+wui_points <- fishnet_clipped %>% filter(WUI_MAJORI=="4") %>% st_centroid()
+
+fire1015_points <- fishnet_clipped %>% filter(Fire1015=="1") %>% st_centroid()
+
+fishnet_clipped <- fishnet_clipped %>%
+  mutate(
+    Conifer.nn =
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(conifer_points),1),
+    Shrub.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(shrub_points),1),
+    Hardwood.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(hardwood_points),1),
+    Facilities.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire_suppression_facilities),3),
+    WUI.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(wui_points),1),
+    Fire.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire1015_points),10))
+
+# DATA VISUALIZATIONS
+##continuous variables
+fishnet_clipped %>% st_drop_geometry() %>%
+  dplyr::select(Fire1617, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
+                SEP1819_ME,OCT1819_ME, Conifer.nn, Shrub.nn, Hardwood.nn, 
+                Facilities.nn, WUI.nn) %>%
+  rename("Elevation" = ELEVATION_, "Slope" = SLOPE_MEAN, "July Temp"=JUL1819_ME,
+         "August Temp"=AUG1819_ME,"September Temp"=SEP1819_ME,"October Temp"=OCT1819_ME,
+         "Dist. to Conifer"=Conifer.nn, "Dist. to Shrub"=Shrub.nn, "Dist. to Hardwood"=Hardwood.nn,
+         "Dist. to Nearest 3 Facilities"=Facilities.nn, "Distance to Wildland/Urban Interface"=WUI.nn) %>%
+  gather(Variable, value, -Fire1617) %>%
+  ggplot(aes(Fire1617, value, fill=Fire1617)) + 
+  geom_bar(position = "dodge", stat = "summary", fun = "mean") + 
+  facet_wrap(~Variable, scales = "free") +
+  #scale_fill_manual(values = palette2) +
+  labs(x="y", y="Value", 
+       title = "Feature associations with the likelihood of Wildfire",
+       subtitle = "(continous outcomes)") +
+  theme(legend.position = "none")
+
+# CORRELATIONS
+numericVars1 <- 
+  select_if(fishnet_clipped, is.numeric) %>% na.omit() %>% st_drop_geometry() %>%
+  dplyr::select(Fire1617, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
+                SEP1819_ME,OCT1819_ME, Conifer.nn, Shrub.nn, Hardwood.nn, 
+                Facilities.nn, WUI.nn,Fire1015)
+
+ggcorrplot(
+  round(cor(numericVars1), 1), 
+  p.mat = cor_pmat(numericVars1),
+  colors = c("#25CB10", "white", "#FA7800"),
+  type="lower",
+  insig = "blank") +  
+  labs(title = "Correlation across Characteristics") 
+
+correlation.long <-
+  st_drop_geometry(fishnet_clipped) %>%
+  dplyr::select(-COUNTY_ABB, -COUNTY_NUM, -COUNTY_COD,-COUNTY_FIP, -ID, -Fire1819) %>%
+  gather(Variable, Value, -Fire1617)
+
+# This isn't working
+correlation.cor <-
+  correlation.long %>%
+  group_by(Variable) %>%
+  summarize(correlation = cor(Value, Fire1617, use = "complete.obs"))
+
+ggplot(filter(correlation.long, Variable=="Abandoned Vehicles"), aes (x=Value, y=countViolations))+  
+  geom_point(size = 0.1) +
+  geom_text(data = filter(correlation.cor,Variable=="Abandoned Vehicles"), check_overlap=TRUE, aes(label = paste("r = ", round(correlation, 2))),
+            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
+  geom_smooth(method = "lm", se = FALSE, colour = "black") +
+  xlab("Abandoned Vehicles") + ylab("Drug Violations") +
+  plotTheme()
+
+
+# LOGISTIC MODEL
+set.seed(3456)
+trainIndex <- createDataPartition(fishnet_clipped$Fire1617, p = .65, 
+                                  y = paste(fishnet_clipped$WUI_MAJORI),
+                                  list = FALSE,
+                                  times = 1)
+fireTrain <- fishnet_clipped[ trainIndex,] %>% st_drop_geometry()
+fireTest  <- fishnet_clipped[-trainIndex,] %>% st_drop_geometry()
+
+# MODEL
+fireModel <- glm(Fire1617 ~ .,
+                 data=fireTrain %>% 
+                   dplyr::select(-COUNTY_ABB,-COUNTY_NUM,
+                                 -COUNTY_COD,-COUNTY_FIP,-Shape_Leng,
+                                 -Shape_Area,-ID),
+                 family="binomial" (link="logit"))
+
+summary(fireModel)
+
+
+## Adding Coefficients
+x <- fireModel$coefficients
+exp(x)
+
+
+## Fit metrics
+pR2(fireModel)
+
+## Prediction
+testProbs <- data.frame(Outcome = as.factor(fireTest$Fire1617),
+                        Probs = predict(fireModel, fireTest, type= "response"))
+
+# Replace NAs with average prob
+#testProbs$Probs <- ifelse(is.na(testProbs$Probs), 0.1043699, testProbs$Probs) 
+
+#testProbskitchensink <- data.frame(Outcome = as.factor(housingTest$y_numeric),
+#Probs = predict(kitchensink, housingTest, type= "response"))
+
+#Here we want more of a hump in the bottom plot around 1 to indicate that the reg is predictive
+ggplot(testProbs, aes(x = Probs, fill = as.factor(Outcome))) + 
+  geom_density() +
+  facet_grid(Outcome ~ .) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Fire", y = "Density of probabilities",
+       title = "Distribution of predicted probabilities by observed outcome",
+       subtitle = "First Model") +
+  theme(strip.text.x = element_text(size = 18),
+        legend.position = "none")
+
+## Confusion matrix
+### Might want to change this threshold, here a probability >50% if being predicted as takes credit
+testProbs <- 
+  testProbs %>%
+  mutate(predOutcome  = as.factor(ifelse(testProbs$Probs > 0.5 , 1, 0)))
+
+caret::confusionMatrix(testProbs$predOutcome, testProbs$Outcome, 
+                       positive = "1")
+
+# ROC Curve
+## This us a goodness of fit measure, 1 would be a perfect fit, .5 is a coin toss
+auc(testProbs$Outcome, testProbs$Probs)
+
+ggplot(testProbs, aes(d = as.numeric(testProbs$Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#FE9900") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - Model with Feature Engineering")
+
+# Model Validation
