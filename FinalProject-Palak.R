@@ -23,6 +23,9 @@ library(viridis)
 library(stargazer)
 library(riem)
 library(RANN)
+library(pscl)
+library(pROC)
+library(plotROC)
 options(scipen=999)
 options(tigris_class = "sf")
 
@@ -484,29 +487,29 @@ fishnet_clipped <- fishnet_clipped %>%
 # DATA VISUALIZATIONS
 ##continuous variables
 fishnet_clipped %>% st_drop_geometry() %>%
-  dplyr::select(Fire1617, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
+  dplyr::select(Fire1418, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
                 SEP1819_ME,OCT1819_ME, Conifer.nn, Shrub.nn, Hardwood.nn, 
                 Facilities.nn, WUI.nn) %>%
   rename("Elevation" = ELEVATION_, "Slope" = SLOPE_MEAN, "July Temp"=JUL1819_ME,
          "August Temp"=AUG1819_ME,"September Temp"=SEP1819_ME,"October Temp"=OCT1819_ME,
          "Dist. to Conifer"=Conifer.nn, "Dist. to Shrub"=Shrub.nn, "Dist. to Hardwood"=Hardwood.nn,
          "Dist. to Nearest 3 Facilities"=Facilities.nn, "Distance to Wildland/Urban Interface"=WUI.nn) %>%
-  gather(Variable, value, -Fire1617) %>%
-  ggplot(aes(Fire1617, value, fill=Fire1617)) + 
+  gather(Variable, value, -Fire1418) %>%
+  ggplot(aes(Fire1418, value, fill=Fire1418)) + 
   geom_bar(position = "dodge", stat = "summary", fun = "mean") + 
   facet_wrap(~Variable, scales = "free") +
   #scale_fill_manual(values = palette2) +
   labs(x="y", y="Value", 
        title = "Feature associations with the likelihood of Wildfire",
        subtitle = "(continous outcomes)") +
-  theme(legend.position = "none")
+  theme()
 
 # CORRELATIONS
 numericVars1 <- 
   select_if(fishnet_clipped, is.numeric) %>% na.omit() %>% st_drop_geometry() %>%
-  dplyr::select(Fire1617, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
+  dplyr::select(Fire1418, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
                 SEP1819_ME,OCT1819_ME, Conifer.nn, Shrub.nn, Hardwood.nn, 
-                Facilities.nn, WUI.nn,Fire1015)
+                Facilities.nn, WUI.nn,Fire1013)
 
 ggcorrplot(
   round(cor(numericVars1), 1), 
@@ -518,14 +521,14 @@ ggcorrplot(
 
 correlation.long <-
   st_drop_geometry(fishnet_clipped) %>%
-  dplyr::select(-COUNTY_ABB, -COUNTY_NUM, -COUNTY_COD,-COUNTY_FIP, -ID, -Fire1819) %>%
-  gather(Variable, Value, -Fire1617)
+  dplyr::select(-COUNTY_ABBREV, -COUNTY_NUM, -COUNTY_CODE,-COUNTY_FIPS, -ID, -Fire19) %>%
+  gather(Variable, Value, -Fire1418)
 
 # This isn't working
 correlation.cor <-
   correlation.long %>%
   group_by(Variable) %>%
-  summarize(correlation = cor(Value, Fire1617, use = "complete.obs"))
+  summarize(correlation = cor(Value, Fire1418, use = "complete.obs"))
 
 ggplot(filter(correlation.long, Variable=="Abandoned Vehicles"), aes (x=Value, y=countViolations))+  
   geom_point(size = 0.1) +
@@ -538,7 +541,7 @@ ggplot(filter(correlation.long, Variable=="Abandoned Vehicles"), aes (x=Value, y
 
 # LOGISTIC MODEL
 set.seed(3456)
-trainIndex <- createDataPartition(fishnet_clipped$Fire1617, p = .65, 
+trainIndex <- createDataPartition(fishnet_clipped$Fire1418, p = .65, 
                                   y = paste(fishnet_clipped$WUI_MAJORI),
                                   list = FALSE,
                                   times = 1)
@@ -546,11 +549,10 @@ fireTrain <- fishnet_clipped[ trainIndex,] %>% st_drop_geometry()
 fireTest  <- fishnet_clipped[-trainIndex,] %>% st_drop_geometry()
 
 # MODEL
-fireModel <- glm(Fire1617 ~ .,
+fireModel <- glm(Fire1418 ~ .,
                  data=fireTrain %>% 
-                   dplyr::select(-COUNTY_ABB,-COUNTY_NUM,
-                                 -COUNTY_COD,-COUNTY_FIP,-Shape_Leng,
-                                 -Shape_Area,-ID),
+                   dplyr::select(-COUNTY_ABBREV,-COUNTY_NUM,
+                                 -COUNTY_CODE,-COUNTY_FIPS,-ID),
                  family="binomial" (link="logit"))
 
 summary(fireModel)
@@ -565,7 +567,7 @@ exp(x)
 pR2(fireModel)
 
 ## Prediction
-testProbs <- data.frame(Outcome = as.factor(fireTest$Fire1617),
+testProbs <- data.frame(Outcome = as.factor(fireTest$Fire1418),
                         Probs = predict(fireModel, fireTest, type= "response"))
 
 # Replace NAs with average prob
