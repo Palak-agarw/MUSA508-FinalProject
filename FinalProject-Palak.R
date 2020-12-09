@@ -203,9 +203,8 @@ fishnet_clipped <- st_intersection(fishnet_unclipped,selected_counties)
 fishnet_clipped <- fishnet_clipped %>% dplyr::select(WUI_MAJORI,FVEG_MAJOR,ELEVATION_,
                                                      SLOPE_MEAN,COVER_MAJ,JUL1819_ME,
                                                      AUG1819_ME, SEP1819_ME, OCT1819_ME,
-                                                     COUNTY_NAM,COUNTY_ABB,COUNTY_NUM,
-                                                     COUNTY_COD, COUNTY_FIP,Shape_Leng,
-                                                     Shape_Area, geometry)
+                                                     COUNTY_NAME,COUNTY_ABBREV,COUNTY_NUM,
+                                                     COUNTY_CODE, COUNTY_FIPS, geometry)
 
 # Adding Unique IDs for each cell
 fishnet_clipped$ID <-  seq.int(nrow(fishnet_clipped))
@@ -322,7 +321,7 @@ fishnet_clipped$ID <- closest_weather_station_to_fishnet
 
 ggplot()+
   geom_sf(data = selected_counties)+
-  geom_sf(data = weather_data)
+  geom_sf(data = weather_coords)
 
 # function and loop -- tried it with the vector of ids and the df of all info, but neither worked. This version below uses just the vector of station ids
 get_weather_features_by_station <- function(weather_station_ids, start_year, end_year){
