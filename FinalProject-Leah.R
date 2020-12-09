@@ -211,9 +211,6 @@ fishnet_clipped <- fishnet_clipped %>% dplyr::select(WUI_MAJORI,FVEG_MAJOR,ELEVA
 # Adding Unique IDs for each cell
 fishnet_clipped$ID <-  seq.int(nrow(fishnet_clipped))
 
-# Getting rid of a weird column that got added for me
-fishnet_clipped <- fishnet_clipped %>% select (-"==...")
-
 ## Joining fire data to fishnets 
 ###2016-17
 fire_perimeter1617 <-
@@ -237,6 +234,7 @@ fishnet_clipped <-
   left_join(., clip1617, on= 'ID') 
 
 fishnet_clipped$Fire1617 <- ifelse(is.na(fishnet_clipped$Fire1617),0, fishnet_clipped$Fire1617)
+
 
 ###2018-19
 fire_perimeter1819 <-
@@ -264,6 +262,39 @@ fishnet_clipped$Fire1819 <- ifelse(is.na(fishnet_clipped$Fire1819),0, fishnet_cl
 # EXPLORATORY ANALYSIS
 
 # FEATURE ENGINEERING
+## Changing Integers to Characters
+### 15 0s (na) here
+fishnet_clipped$WUI_MAJORI <- as.factor(fishnet_clipped$WUI_MAJORI)
+
+### 1 0 (na) here
+fishnet_clipped$FVEG_MAJOR <- as.factor(fishnet_clipped$FVEG_MAJOR)
+
+fishnet_clipped$COVER_MAJ <- as.factor(fishnet_clipped$COVER_MAJ)
+
+## Fire in last 5 years
+fire_perimeter1015 <-
+  fire_pt %>%
+  filter(YEAR_  == '2010' | YEAR_ =='2011'| YEAR_ =='2012'| YEAR_ =='2013'| YEAR_ =='2014'| YEAR_ =='2015') %>%
+  st_transform('EPSG:2225')
+
+ggplot() +
+  geom_sf(data = fire_perimeter1015, fill="orange")+
+  geom_sf(data = selected_counties, fill = 'transparent')
+
+clip1015 <- 
+  st_intersection(st_make_valid(fire_perimeter1015),st_make_valid(fishnet_clipped)) %>%
+  select(ID) %>%
+  st_drop_geometry() %>%
+  mutate(Fire1015 = 1) %>%
+  distinct()
+
+fishnet_clipped <-
+  fishnet_clipped %>%
+  left_join(., clip1015, on= 'ID') 
+
+fishnet_clipped$Fire1015 <- ifelse(is.na(fishnet_clipped$Fire1015),0, fishnet_clipped$Fire1015)
+
+## Categorical Features
 fishnet_clipped <- fishnet_clipped %>% mutate(CoverCat = case_when(fishnet_clipped$COVER_MAJ=="1"|fishnet_clipped$COVER_MAJ=="2"|fishnet_clipped$COVER_MAJ=="4" ~ "forest",
                                               fishnet_clipped$COVER_MAJ=="6"|fishnet_clipped$COVER_MAJ=="7" ~ "shrubland",
                                               fishnet_clipped$COVER_MAJ=="8"|fishnet_clipped$COVER_MAJ=="9"|fishnet_clipped$COVER_MAJ=="10"~ "savanna_grassland",
@@ -277,8 +308,10 @@ fishnet_clipped <- fishnet_clipped %>% mutate(SlopeCat = case_when(fishnet_clipp
                                                                    fishnet_clipped$SLOPE_MEAN >=5|fishnet_clipped$SLOPE_MEAN <15 ~ "medium",
                                                                    fishnet_clipped$SLOPE_MEAN >=15 ~ "high" ))
 
-fishnet_clipped <- fishnet_clipped %>% mutate (ElevationBi = if_else(fishnet_clipped$ELEVATION_>3000,"high","low"))
+## Dummy Feature
+fishnet_clipped <- fishnet_clipped %>% mutate (ElevationBi = if_else(fishnet_clipped$ELEVATION_>3000,1,0))
 
+## Nearest Neighbor Features
 conifer_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="1") %>% st_centroid()
 
 shrub_points<- fishnet_clipped %>% filter(FVEG_MAJOR=="2") %>% st_centroid()
@@ -286,6 +319,8 @@ shrub_points<- fishnet_clipped %>% filter(FVEG_MAJOR=="2") %>% st_centroid()
 hardwood_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="6") %>% st_centroid()
 
 wui_points <- fishnet_clipped %>% filter(WUI_MAJORI=="4") %>% st_centroid()
+
+fire1015_points <- fishnet_clipped %>% filter(Fire1015=="1") %>% st_centroid()
 
 fishnet_clipped <- fishnet_clipped %>%
   mutate(
@@ -298,65 +333,9 @@ fishnet_clipped <- fishnet_clipped %>%
     Facilities.nn=
       nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire_suppression_facilities),3),
     WUI.nn=
-      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(wui_points),1),)
-
-# LOCAL MORAN's I
-# Join nn features to our fishnet
-## important to drop the geometry from joining features
-#final_net <-
-  #left_join(crime_net, st_drop_geometry(vars_net), by="uniqueID")
-
-#final_net <-
-  #st_centroid(final_net) %>%
-  #st_join(dplyr::select(Neighborhoods, NAME), by = "uniqueID") %>%
-  #st_join(dplyr::select(PoliceDistricts, ID), by = "uniqueID") %>%
-  #st_drop_geometry() %>%
-  #left_join(dplyr::select(final_net, geometry, uniqueID)) %>%
-  #st_sf() %>%
-  #na.omit()
-
-## Local Moran's I for fishnet grid cells
-## generates warnings from PROJ issues
-## {spdep} to make polygon to neighborhoods... 
-final_net.nb <- poly2nb(as_Spatial(final_net), queen=TRUE)
-## ... and neighborhoods to list of weigths
-final_net.weights <- nb2listw(final_net.nb, style="W", zero.policy=TRUE)
-
-final_net.localMorans <- 
-  cbind(
-    as.data.frame(localmoran(final_net$countViolations, final_net.weights)),
-    as.data.frame(final_net)) %>% 
-  st_sf() %>%
-  dplyr::select(Violations_Count = countViolations, 
-                Local_Morans_I = Ii, 
-                P_Value = `Pr(z > 0)`) %>%
-  mutate(Significant_Hotspots = ifelse(P_Value <= 0.05, 1, 0)) %>%
-  gather(Variable, Value, -geometry)
-
-vars <- unique(final_net.localMorans$Variable)
-varList <- list()
-
-for(i in vars){
-  varList[[i]] <- 
-    ggplot() +
-    geom_sf(data = filter(final_net.localMorans, Variable == i), 
-            aes(fill = Value), colour=NA) +
-    scale_fill_viridis(name="") +
-    labs(title=i) +
-    mapTheme() + theme(legend.position="bottom")}
-
-do.call(grid.arrange,c(varList, ncol = 4, top = "Local Morans I statistics, Drug Violations"))
-
-final_net <-
-  final_net %>% 
-  mutate(drugs.isSig = 
-           ifelse(localmoran(final_net$countViolations, 
-                             final_net.weights)[,5] <= 0.0000001, 1, 0)) %>%
-  mutate(drugs.isSig.dist = 
-           nn_function(st_coordinates(st_centroid(final_net)),
-                       st_coordinates(st_centroid(
-                         filter(final_net, drugs.isSig == 1))), 1))
-
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(wui_points),1),
+    Fire.nn=
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire1015_points),10))
 
 # DATA VISUALIZATIONS
 ##continuous variables
@@ -383,7 +362,7 @@ numericVars1 <-
   select_if(fishnet_clipped, is.numeric) %>% na.omit() %>% st_drop_geometry() %>%
  dplyr::select(Fire1617, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
                 SEP1819_ME,OCT1819_ME, Conifer.nn, Shrub.nn, Hardwood.nn, 
-                Facilities.nn, WUI.nn)
+                Facilities.nn, WUI.nn,Fire1015)
 
 ggcorrplot(
   round(cor(numericVars1), 1), 
@@ -416,20 +395,18 @@ ggplot(filter(correlation.long, Variable=="Abandoned Vehicles"), aes (x=Value, y
 # LOGISTIC MODEL
 set.seed(3456)
 trainIndex <- createDataPartition(fishnet_clipped$Fire1617, p = .65, 
+                                  y = paste(fishnet_clipped$WUI_MAJORI),
                                   list = FALSE,
                                   times = 1)
 fireTrain <- fishnet_clipped[ trainIndex,] %>% st_drop_geometry()
 fireTest  <- fishnet_clipped[-trainIndex,] %>% st_drop_geometry()
 
-# Getting an error here
+# MODEL
 fireModel <- glm(Fire1617 ~ .,
                     data=fireTrain %>% 
-                      dplyr::select(-WUI_MAJORI,-FVEG_MAJOR,-COVER_MAJ,
-                                    -JUL1819_ME,-AUG1819_ME,-SEP1819_ME,
-                                    -OCT1819_ME,-COUNTY_ABB,-COUNTY_NUM,
+                      dplyr::select(-COUNTY_ABB,-COUNTY_NUM,
                                     -COUNTY_COD,-COUNTY_FIP,-Shape_Leng,
-                                    -Shape_Area,-ID,-CoverCat,-SlopeCat,-ElevationBi,
-                                    -Fire1819, -Facilities.nn),
+                                    -Shape_Area,-ID),
                     family="binomial" (link="logit"))
 
 summary(fireModel)
