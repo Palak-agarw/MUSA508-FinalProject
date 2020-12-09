@@ -204,7 +204,7 @@ fishnet_clipped <- fishnet_clipped %>% dplyr::select(WUI_MAJORI,FVEG_MAJOR,ELEVA
                                                      SLOPE_MEAN,COVER_MAJ,JUL1819_ME,
                                                      AUG1819_ME, SEP1819_ME, OCT1819_ME,
                                                      COUNTY_NAME,COUNTY_ABBREV,COUNTY_NUM,
-                                                     COUNTY_CODE, COUNTY_FIPS, geometry)
+                                                     COUNTY_CODE, COUNTY_FIPS)
 
 # Adding Unique IDs for each cell
 fishnet_clipped$ID <-  seq.int(nrow(fishnet_clipped))
@@ -259,14 +259,14 @@ fishnet_clipped$Fire19 <- ifelse(is.na(fishnet_clipped$Fire19),0, fishnet_clippe
 ## Weather
 
 # vector 1 - of southern california station ids
-weather_station_ids <- c("SIY", "CEC", "MHS", "O86", "ACV", "O54", "EKA", "FOT", "O87", "RDD", "RBL", "CIC", "OVE",
-                         "UKI", "MYV", "STS", "O69", "DVO", "APC", "SUU", "VCB", "DWA", "EDU", "SMF", "LHM", "MYV")
+weather_station_ids <- c("SIY", "CEC", "MHS", "O86", "ACV", "FOT", "RDD", "RBL", "CIC", "OVE",
+                         "UKI", "MYV", "STS", "O69", "DVO", "APC", "SUU", "VCB", "EDU", "SMF", "LHM", "MYV")
 
 # df - stations with lat/lon and name info (in addition to ids)
 asos_socal_stations <- riem_stations("CA_ASOS") %>% filter(str_detect(id, paste(weather_station_ids, collapse="|")))
 asos_socal_stations$weather_station_id <- asos_socal_stations$id
 asos_socal_stations <-  st_as_sf(asos_socal_stations, coords = c("lon","lat"), crs = 4326, agr = "constant") %>% st_transform('EPSG:2225')
-asos_socal_stations$ID <-  seq.int(nrow(asos_socal_stations))
+asos_socal_stations$weather_ID <-  seq.int(nrow(asos_socal_stations))
 
 ## Finding closest station
 weather_coords <- 
@@ -279,7 +279,7 @@ fishnet_coords <-
 
 closest_weather_station_to_fishnet <- nn2(weather_coords, fishnet_coords, k = 1)$nn.idx
 
-fishnet_clipped$ID <- closest_weather_station_to_fishnet
+fishnet_clipped$weather_ID <- closest_weather_station_to_fishnet
 
 ggplot()+
   geom_sf(data = selected_counties)+
@@ -321,9 +321,10 @@ weather_data2014 <- get_weather_features_by_station(weather_station_ids, 2014, 2
          Mean_Wind_Speed14 = Mean_Wind_Speed)
 
 weather_2014 <- left_join(weather_data2014, asos_socal_stations, on = 'weather_station_id') %>%
-  select (-weather_station_id, -id, -name, -year, -geometry) 
+  select (-weather_station_id, -id, -name, -year, -geometry) %>%
+  distinct() 
 
-fishnet_clipped <- left_join(fishnet_clipped, weather_2014, on = "ID")
+fishnet_clipped <- left_join(fishnet_clipped, weather_2014, on = "weather_ID")
 
 weather_data2015 <- get_weather_features_by_station(weather_station_ids, 2015, 2015) %>%
   rename(Max_Temp15 = Max_Temp,
@@ -333,9 +334,10 @@ weather_data2015 <- get_weather_features_by_station(weather_station_ids, 2015, 2
          Mean_Wind_Speed15 = Mean_Wind_Speed)
 
 weather_2015 <- left_join(weather_data2015, asos_socal_stations, on = 'weather_station_id') %>%
-  select (-weather_station_id, -id, -name, -year, -geometry) 
+  select (-weather_station_id, -id, -name, -year, -geometry) %>%
+  distinct()
 
-fishnet_clipped <- left_join(fishnet_clipped, weather_2015, on = "ID")
+fishnet_clipped <- left_join(fishnet_clipped, weather_2015, on = "weather_ID")
 
 weather_data2016 <- get_weather_features_by_station(weather_station_ids, 2016, 2016) %>%
   rename(Max_Temp16 = Max_Temp,
@@ -345,9 +347,10 @@ weather_data2016 <- get_weather_features_by_station(weather_station_ids, 2016, 2
          Mean_Wind_Speed16 = Mean_Wind_Speed)
 
 weather_2016 <- left_join(weather_data2016, asos_socal_stations, on = 'weather_station_id') %>%
-  select (-weather_station_id, -id, -name, -year, -geometry) 
+  select (-weather_station_id, -id, -name, -year, -geometry)%>%
+  distinct() 
 
-fishnet_clipped <- left_join(fishnet_clipped, weather_2016, on = "ID")
+fishnet_clipped <- left_join(fishnet_clipped, weather_2016, on = "weather_ID")
 
 weather_data2017 <- get_weather_features_by_station(weather_station_ids, 2017, 2017) %>%
   rename(Max_Temp17 = Max_Temp,
@@ -357,9 +360,10 @@ weather_data2017 <- get_weather_features_by_station(weather_station_ids, 2017, 2
          Mean_Wind_Speed17 = Mean_Wind_Speed)
 
 weather_2017 <- left_join(weather_data2017, asos_socal_stations, on = 'weather_station_id') %>%
-  select (-weather_station_id, -id, -name, -year, -geometry) 
+  select (-weather_station_id, -id, -name, -year, -geometry)%>%
+  distinct() 
 
-fishnet_clipped <- left_join(fishnet_clipped, weather_2017, on = "ID")
+fishnet_clipped <- left_join(fishnet_clipped, weather_2017, on = "weather_ID")
 
 weather_data2018 <- get_weather_features_by_station(weather_station_ids, 2018, 2018) %>%
   rename(Max_Temp18 = Max_Temp,
@@ -369,9 +373,10 @@ weather_data2018 <- get_weather_features_by_station(weather_station_ids, 2018, 2
          Mean_Wind_Speed18 = Mean_Wind_Speed)
 
 weather_2018 <- left_join(weather_data2018, asos_socal_stations, on = 'weather_station_id') %>%
-  select (-weather_station_id, -id, -name, -year, -geometry) 
+  select (-weather_station_id, -id, -name, -year, -geometry)%>%
+  distinct() 
 
-fishnet_clipped <- left_join(fishnet_clipped, weather_2018, on = "ID")
+fishnet_clipped <- left_join(fishnet_clipped, weather_2018, on = "weather_ID")
 
 weather_data2019 <- get_weather_features_by_station(weather_station_ids, 2019, 2019) %>%
   rename(Max_Temp19 = Max_Temp,
@@ -381,9 +386,10 @@ weather_data2019 <- get_weather_features_by_station(weather_station_ids, 2019, 2
          Mean_Wind_Speed19 = Mean_Wind_Speed)
 
 weather_2019 <- left_join(weather_data2019, asos_socal_stations, on = 'weather_station_id') %>%
-  select (-weather_station_id, -id, -name, -year, -geometry) 
+  select (-weather_station_id, -id, -name, -year, -geometry)%>%
+  distinct() 
 
-fishnet_clipped <- left_join(fishnet_clipped, weather_2019, on = "ID")
+fishnet_clipped <- left_join(fishnet_clipped, weather_2019, on = "weather_ID")
 
 # EXPLORATORY ANALYSIS
 
@@ -407,7 +413,7 @@ ggplot() +
   geom_sf(data = fire_perimeter1015, fill="orange")+
   geom_sf(data = selected_counties, fill = 'transparent')
 
-clip1015 <- 
+clip1013 <- 
   st_intersection(st_make_valid(fire_perimeter1013),st_make_valid(fishnet_clipped)) %>%
   select(ID) %>%
   st_drop_geometry() %>%
@@ -416,12 +422,20 @@ clip1015 <-
 
 fishnet_clipped <-
   fishnet_clipped %>%
-  left_join(., clip1015, on= 'ID') 
+  left_join(., clip1013, on= 'ID') 
 
-fishnet_clipped$Fire1015 <- ifelse(is.na(fishnet_clipped$Fire1013),0, fishnet_clipped$Fire1013)
+fishnet_clipped$Fire1013 <- ifelse(is.na(fishnet_clipped$Fire1013),0, fishnet_clipped$Fire1013)
 
 ## Historical fire
+##intersections of fire perimeters with each fishnet cell.
+fishnet_clipped <- 
+  fishnet_clipped %>% 
+  mutate(n_fires_intersections = lengths(st_intersects(st_make_valid(fishnet_clipped), st_make_valid(fire_pt))))
 
+## adding a column for y/n for historical fire presence
+fishnet_clipped <-
+  fishnet_clipped %>%
+  mutate(prev_fire = ifelse(fishnet_clipped$n_fires_intersections > 0, "1", "0"))
 
 
 ## Categorical Features
@@ -450,7 +464,7 @@ hardwood_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="6") %>% st_centroid()
 
 wui_points <- fishnet_clipped %>% filter(WUI_MAJORI=="4") %>% st_centroid()
 
-fire1015_points <- fishnet_clipped %>% filter(Fire1015=="1") %>% st_centroid()
+fire1013_points <- fishnet_clipped %>% filter(Fire1013=="1") %>% st_centroid()
 
 fishnet_clipped <- fishnet_clipped %>%
   mutate(
@@ -465,7 +479,7 @@ fishnet_clipped <- fishnet_clipped %>%
     WUI.nn=
       nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(wui_points),1),
     Fire.nn=
-      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire1015_points),10))
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire1013_points),10))
 
 # DATA VISUALIZATIONS
 ##continuous variables
