@@ -607,3 +607,60 @@ ggplot(testProbs, aes(d = as.numeric(testProbs$Outcome), m = Probs)) +
   labs(title = "ROC Curve - Model with Feature Engineering")
 
 # Model Validation
+
+crossValidate <- function(dataset, id, dependentVariable, indVariables) {
+  
+  allPredictions <- data.frame()
+  cvID_list <- unique(dataset[[id]])
+  
+  for (i in cvID_list) {
+    
+    thisFold <- i
+    cat("This hold out fold is", thisFold, "\n")
+    
+    fold.train <- filter(dataset, dataset[[id]] != thisFold) %>% as.data.frame() %>% 
+      dplyr::select(id, geometry, indVariables, dependentVariable)
+    fold.test  <- filter(dataset, dataset[[id]] == thisFold) %>% as.data.frame() %>% 
+      dplyr::select(id, geometry, indVariables, dependentVariable)
+    
+    regression <-
+      glm(Fire1418 ~ ., family = "binomial", 
+          data = fold.train %>% 
+            dplyr::select(-geometry, -id))
+    
+    thisPrediction <- 
+      mutate(fold.test, Prediction = predict(regression, fold.test, type = "response"))
+    
+    allPredictions <-
+      rbind(allPredictions, thisPrediction)
+    
+  }
+  return(st_sf(allPredictions))
+}
+
+reg.vars <- c("ELEVATION_","SLOPE_MEAN","JUL1819_ME","AUG1819_ME","SEP1819_ME","OCT1819_ME","Mean_Precipitation14",
+              "Mean_Humidity14","Mean_Wind_Speed14","Mean_Precipitation15","Mean_Humidity15","Mean_Wind_Speed15","Mean_Precipitation16","Mean_Humidity16",
+              "Mean_Wind_Speed16","Mean_Precipitation17","Mean_Humidity17","Mean_Wind_Speed17","Mean_Precipitation18","Mean_Humidity18","Mean_Wind_Speed18",
+              "Mean_Precipitation19","Mean_Humidity19","Mean_Wind_Speed19","Fire1013","n_fires_intersections","prev_fire","CoverCat","SlopeCat","ElevationBi",
+              "Conifer.nn","Shrub.nn","Hardwood.nn","Facilities.nn","WUI.nn","Fire.nn")
+
+reg.spatialCV <- crossValidate(
+  dataset = fishnet_clipped,
+  id = "COUNTY_NAME",
+  dependentVariable = "Fire1418",
+  indVariables = reg.vars) 
+
+reg.spatialcv <-
+  reg.spatialCV %>%
+  dplyr::select(cvID = COUNTY_NAME, Fire1418, Prediction, geometry)
+
+ggplot() +
+  geom_sf(data = reg.spatialcv, aes(fill = Prediction), color = "transparent")+
+  geom_sf(data = fire_perimeter1418, fill = "transparent", color = "red")
+
+reg.spatialcv <-
+  reg.spatialcv %>%
+  mutate(Error = Prediction - Fire1418)
+
+ggplot() +
+  geom_sf(data = reg.spatialcv, aes(fill = Error), color = "transparent")
