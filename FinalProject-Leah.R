@@ -24,6 +24,7 @@ library(stargazer)
 library(pscl)
 library(pROC)
 library(plotROC)
+library(RANN)
 options(scipen=999)
 options(tigris_class = "sf")
 
@@ -185,9 +186,6 @@ multipleRingBuffer <- function(inputPolygon, maxDistance, interval)
 
 ## READ IN DATA
 
-#fire_perimeters <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_perimeters.shp") %>%
-  #filter (YEAR_=="2018" | YEAR_=="2019") %>% st_transform
-
 fire_pt <- st_read("https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/arcgis/rest/services/California_Fire_Perimeters/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson")%>%
   st_transform('EPSG:2225')
 
@@ -196,7 +194,10 @@ fire_suppression_facilities <- st_read("C:/Users/owner160829a/Desktop/Graduate S
 fishnet_unclipped <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/Fishnet with Joined Data/fishnet_halfmile_joins.shp") %>%
   st_transform('EPSG:2225')
 
-selected_counties <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/Selected Counties/selected_counties.shp") %>%
+selected_counties <- st_read("https://opendata.arcgis.com/datasets/a61c138d0a6946da8d1ebb8d1c9db13a_0.geojson") %>%
+  filter(COUNTY_NAME == 'Del Norte' | COUNTY_NAME == 'Siskiyou' | COUNTY_NAME == 'Humboldt' | COUNTY_NAME == 'Trinity' |
+           COUNTY_NAME == 'Shasta' | COUNTY_NAME == 'Tehama' | COUNTY_NAME == 'Mendocino' | COUNTY_NAME == 'Glenn' |
+           COUNTY_NAME == 'Lake' | COUNTY_NAME == 'Colusa' | COUNTY_NAME == 'Sonoma' |COUNTY_NAME == 'Napa' | COUNTY_NAME == 'Yolo') %>%
   st_transform('EPSG:2225')
 
 fishnet_clipped <- st_intersection(fishnet_unclipped,selected_counties)
@@ -204,95 +205,92 @@ fishnet_clipped <- st_intersection(fishnet_unclipped,selected_counties)
 fishnet_clipped <- fishnet_clipped %>% dplyr::select(WUI_MAJORI,FVEG_MAJOR,ELEVATION_,
                                                      SLOPE_MEAN,COVER_MAJ,JUL1819_ME,
                                                      AUG1819_ME, SEP1819_ME, OCT1819_ME,
-                                                     COUNTY_NAM,COUNTY_ABB,COUNTY_NUM,
-                                                     COUNTY_COD, COUNTY_FIP,Shape_Leng,
-                                                     Shape_Area, geometry)
+                                                     COUNTY_NAME, geometry)
+
+# Replacing NAs with the mean
+fishnet_clipped$AUG1819_ME <- ifelse(is.na(fishnet_clipped$AUG1819_ME), 15188.16, fishnet_clipped$AUG1819_ME) 
 
 # Adding Unique IDs for each cell
 fishnet_clipped$ID <-  seq.int(nrow(fishnet_clipped))
 
 ## Joining fire data to fishnets 
-###2016-17
-fire_perimeter1617 <-
+###2014-18
+fire_perimeter1418 <-
   fire_pt %>%
-  filter(YEAR_  == '2016' | YEAR_ =='2017') %>%
+  filter(YEAR_  == '2014' | YEAR_  == '2015' | YEAR_  == '2016' | YEAR_ =='2017' | YEAR_  == '2018') %>%
   st_transform('EPSG:2225')
 
 ggplot() +
-  geom_sf(data = fire_perimeter1617, fill="orange")+
+  geom_sf(data = fire_perimeter1418)+
   geom_sf(data = selected_counties, fill = 'transparent')
 
-clip1617 <- 
-  st_intersection(st_make_valid(fire_perimeter1617),st_make_valid(fishnet_clipped)) %>%
+clip1418 <- 
+  st_intersection(st_make_valid(fire_perimeter1418),st_make_valid(fishnet_clipped)) %>%
   select(ID) %>%
   st_drop_geometry() %>%
-  mutate(Fire1617 = 1) %>%
+  mutate(Fire1418 = 1) %>%
   distinct()
 
 fishnet_clipped <-
   fishnet_clipped %>%
-  left_join(., clip1617, on= 'ID') 
+  left_join(., clip1418, on= 'ID') 
 
-fishnet_clipped$Fire1617 <- ifelse(is.na(fishnet_clipped$Fire1617),0, fishnet_clipped$Fire1617)
+fishnet_clipped$Fire1418 <- ifelse(is.na(fishnet_clipped$Fire1418),0, fishnet_clipped$Fire1418)
 
-
-###2018-19
-fire_perimeter1819 <-
+###2019
+fire_perimeter19 <-
   fire_pt %>%
-  filter(YEAR_  == '2018' | YEAR_ =='2019') %>%
+  filter(YEAR_ =='2019') %>%
   st_transform('EPSG:2225')
 
 ggplot() +
-  geom_sf(data = fire_perimeter1819)+
+  geom_sf(data = fire_perimeter19)+
   geom_sf(data = selected_counties, fill = 'transparent')
 
-clip1819 <- 
-  st_intersection(st_make_valid(fire_perimeter1819),st_make_valid(fishnet_clipped)) %>%
+clip19 <- 
+  st_intersection(st_make_valid(fire_perimeter19),st_make_valid(fishnet_clipped)) %>%
   select(ID) %>%
   st_drop_geometry() %>%
-  mutate(Fire1819 = 1) %>%
+  mutate(Fire19 = 1) %>%
   distinct()
 
 fishnet_clipped <-
   fishnet_clipped %>%
-  left_join(., clip1819, on= 'ID') 
+  left_join(., clip19, on= 'ID') 
 
-fishnet_clipped$Fire1819 <- ifelse(is.na(fishnet_clipped$Fire1819),0, fishnet_clipped$Fire1819)
+fishnet_clipped$Fire19 <- ifelse(is.na(fishnet_clipped$Fire19),0, fishnet_clipped$Fire19)
+
+## WEATHER DATA
 
 # EXPLORATORY ANALYSIS
 
 # FEATURE ENGINEERING
 ## Changing Integers to Characters
-### 15 0s (na) here
+
 fishnet_clipped$WUI_MAJORI <- as.factor(fishnet_clipped$WUI_MAJORI)
 
-### 1 0 (na) here
 fishnet_clipped$FVEG_MAJOR <- as.factor(fishnet_clipped$FVEG_MAJOR)
 
 fishnet_clipped$COVER_MAJ <- as.factor(fishnet_clipped$COVER_MAJ)
 
-## Fire in last 5 years
-fire_perimeter1015 <-
+## Fire in last 3 years
+fire_perimeter1013 <-
   fire_pt %>%
-  filter(YEAR_  == '2010' | YEAR_ =='2011'| YEAR_ =='2012'| YEAR_ =='2013'| YEAR_ =='2014'| YEAR_ =='2015') %>%
+  filter(YEAR_  == '2010' | YEAR_ =='2011'| YEAR_ =='2012'| YEAR_ =='2013') %>%
   st_transform('EPSG:2225')
 
-ggplot() +
-  geom_sf(data = fire_perimeter1015, fill="orange")+
-  geom_sf(data = selected_counties, fill = 'transparent')
-
-clip1015 <- 
-  st_intersection(st_make_valid(fire_perimeter1015),st_make_valid(fishnet_clipped)) %>%
+clip1013 <- 
+  st_intersection(st_make_valid(fire_perimeter1013),st_make_valid(fishnet_clipped)) %>%
   select(ID) %>%
   st_drop_geometry() %>%
-  mutate(Fire1015 = 1) %>%
+  mutate(Fire1013 = 1) %>%
   distinct()
 
 fishnet_clipped <-
   fishnet_clipped %>%
-  left_join(., clip1015, on= 'ID') 
+  left_join(., clip1013, on= 'ID') 
 
-fishnet_clipped$Fire1015 <- ifelse(is.na(fishnet_clipped$Fire1015),0, fishnet_clipped$Fire1015)
+fishnet_clipped$Fire1013 <- ifelse(is.na(fishnet_clipped$Fire1013),0, fishnet_clipped$Fire1013)
 
 ## Categorical Features
 fishnet_clipped <- fishnet_clipped %>% mutate(CoverCat = case_when(fishnet_clipped$COVER_MAJ=="1"|fishnet_clipped$COVER_MAJ=="2"|fishnet_clipped$COVER_MAJ=="4" ~ "forest",
@@ -320,7 +318,7 @@ hardwood_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="6") %>% st_centroid()
 
 wui_points <- fishnet_clipped %>% filter(WUI_MAJORI=="4") %>% st_centroid()
 
-fire1015_points <- fishnet_clipped %>% filter(Fire1015=="1") %>% st_centroid()
+fire1013_points <- fishnet_clipped %>% filter(Fire1013=="1") %>% st_centroid()
 
 fishnet_clipped <- fishnet_clipped %>%
   mutate(
@@ -335,20 +333,22 @@ fishnet_clipped <- fishnet_clipped %>%
     WUI.nn=
       nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(wui_points),1),
     Fire.nn=
-      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire1015_points),10))
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire1013_points),10))
 
 # DATA VISUALIZATIONS
 ##continuous variables
+###Warning message: Removed 5546 rows containing non-finite values (stat_summary). 
+
 fishnet_clipped %>% st_drop_geometry() %>%
-  dplyr::select(Fire1617, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
+  dplyr::select(Fire1418, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
                 SEP1819_ME,OCT1819_ME, Conifer.nn, Shrub.nn, Hardwood.nn, 
                 Facilities.nn, WUI.nn) %>%
   rename("Elevation" = ELEVATION_, "Slope" = SLOPE_MEAN, "July Temp"=JUL1819_ME,
          "August Temp"=AUG1819_ME,"September Temp"=SEP1819_ME,"October Temp"=OCT1819_ME,
         "Dist. to Conifer"=Conifer.nn, "Dist. to Shrub"=Shrub.nn, "Dist. to Hardwood"=Hardwood.nn,
         "Dist. to Nearest 3 Facilities"=Facilities.nn, "Distance to Wildland/Urban Interface"=WUI.nn) %>%
-  gather(Variable, value, -Fire1617) %>%
-  ggplot(aes(Fire1617, value, fill=Fire1617)) + 
+  gather(Variable, value, -Fire1418) %>%
+  ggplot(aes(Fire1418, value, fill=Fire1418)) + 
   geom_bar(position = "dodge", stat = "summary", fun = "mean") + 
   facet_wrap(~Variable, scales = "free") +
   #scale_fill_manual(values = palette2) +
@@ -358,30 +358,17 @@ fishnet_clipped %>% st_drop_geometry() %>%
   theme(legend.position = "none")
 
 # CORRELATIONS
-numericVars1 <- 
-  select_if(fishnet_clipped, is.numeric) %>% na.omit() %>% st_drop_geometry() %>%
- dplyr::select(Fire1617, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
-                SEP1819_ME,OCT1819_ME, Conifer.nn, Shrub.nn, Hardwood.nn, 
-                Facilities.nn, WUI.nn,Fire1015)
-
-ggcorrplot(
-  round(cor(numericVars1), 1), 
-  p.mat = cor_pmat(numericVars1),
-  colors = c("#25CB10", "white", "#FA7800"),
-  type="lower",
-  insig = "blank") +  
-  labs(title = "Correlation across Characteristics") 
 
 correlation.long <-
   st_drop_geometry(fishnet_clipped) %>%
-  dplyr::select(-COUNTY_ABB, -COUNTY_NUM, -COUNTY_COD,-COUNTY_FIP, -ID, -Fire1819) %>%
-  gather(Variable, Value, -Fire1617)
+  dplyr::select(-WUI_MAJORI,-FVEG_MAJOR,-COVER_MAJ,-COUNTY_NAME,-ID, -Fire19) %>%
+  gather(Variable, Value, -Fire1418)
 
 # This isn't working
 correlation.cor <-
   correlation.long %>%
   group_by(Variable) %>%
-  summarize(correlation = cor(Value, Fire1617, use = "complete.obs"))
+  summarize(correlation = cor(Value, Fire1418, use = "complete.obs"))
 
 ggplot(filter(correlation.long, Variable=="Abandoned Vehicles"), aes (x=Value, y=countViolations))+  
   geom_point(size = 0.1) +
@@ -394,18 +381,22 @@ ggplot(filter(correlation.long, Variable=="Abandoned Vehicles"), aes (x=Value, y
 
 # LOGISTIC MODEL
 set.seed(3456)
-trainIndex <- createDataPartition(fishnet_clipped$Fire1617, p = .65, 
-                                  y = paste(fishnet_clipped$WUI_MAJORI),
-                                  list = FALSE,
-                                  times = 1)
-fireTrain <- fishnet_clipped[ trainIndex,] %>% st_drop_geometry()
-fireTest  <- fishnet_clipped[-trainIndex,] %>% st_drop_geometry()
+fireTrain1 <- fishnet_clipped %>% filter(Fire1418==1) %>% sample_n()
+fireTrain0 <- fishnet_clipped %>% filter(Fire1418==0) %>% sample_n()
+fireTrain <- rbind(fireTrain1,fireTrain0)
+fireTest <- fishnet_clipped[!(fishnet_clipped$ID %in% fireTrain$ID),]
+
+#trainIndex <- createDataPartition(fishnet_clipped$Fire1617, p = .65, 
+                                 # y = paste(fishnet_clipped$WUI_MAJORI),
+                                 # list = FALSE,
+                                  #times = 1)
+#fireTrain <- fishnet_clipped[ trainIndex,] %>% st_drop_geometry()
+#fireTest  <- fishnet_clipped[-trainIndex,] %>% st_drop_geometry()
 
 # MODEL
-fireModel <- glm(Fire1617 ~ .,
+fireModel <- glm(Fire1418 ~ .,
                     data=fireTrain %>% 
-                      dplyr::select(-COUNTY_ABB,-COUNTY_NUM,
-                                    -COUNTY_COD,-COUNTY_FIP,-Shape_Leng,
+                      dplyr::select(-WUI_MAJORI,Shape_Leng,
                                     -Shape_Area,-ID),
                     family="binomial" (link="logit"))
 
@@ -445,7 +436,7 @@ ggplot(testProbs, aes(x = Probs, fill = as.factor(Outcome))) +
 ### Might want to change this threshold, here a probability >50% if being predicted as takes credit
 testProbs <- 
   testProbs %>%
-  mutate(predOutcome  = as.factor(ifelse(testProbs$Probs > 0.5 , 1, 0)))
+  mutate(predOutcome  = as.factor(ifelse(testProbs$Probs > 0.2 , 1, 0)))
 
 caret::confusionMatrix(testProbs$predOutcome, testProbs$Outcome, 
                        positive = "1")
