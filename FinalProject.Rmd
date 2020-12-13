@@ -60,5 +60,33 @@ knitr::opts_chunk$set(error = FALSE)
 ## Goodness of Fit
 -McFadden
 -Density of probabilities plot
+-selecting a threshold
 -Confusion Matrix
 -ROC Curve
+-discuss accuracy
+
+```{r fit, message=FALSE, warning=FALSE}
+
+```
+
+## Cross Validation
+- discuss generalizability
+```{r cv, message=FALSE, warning=FALSE}
+
+```
+
+### Spatial Cross Validation
+-discuss generalizability
+```{r spatial_cv, message=FALSE, warning=FALSE}
+
+```
+
+# Cost Benefit Analysis
+```{r cba, message=FALSE, warning=FALSE}
+
+```
+
+# Discussion
+-critique strengths and weaknesses of model
+
+# Conclusion

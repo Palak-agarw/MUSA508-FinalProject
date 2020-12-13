@@ -555,7 +555,7 @@ fishnet_clipped <- fishnet_clipped %>%
     WUI.nn=
       nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(wui_points),1),
     Fire.nn=
-      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire1013_points),10))
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire1013_points),5))
 
 # DATA VISUALIZATIONS
 ##continuous variables
@@ -615,7 +615,7 @@ fireModel <- glm(Fire1418 ~ .,
                                     -MeanMaxTemp,-FIRE, -CoverCat, -ElevationBi,
                                     -Fire.nn, -SlopeCat, -MeanPrecip1418, -Max_Temp19, 
                                     -Mean_Temp19, -Mean_Precipitation19, 
-                                    -Mean_Humidity19, -Mean_Wind_Speed19, -Fire1013),
+                                    -Mean_Humidity19, -Mean_Wind_Speed19, -Fire1013, -Shrub.nn),
                     family="binomial" (link="logit"))
 
 summary(fireModel)
