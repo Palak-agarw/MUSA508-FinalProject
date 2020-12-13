@@ -1,0 +1,64 @@
+---
+title: "Predicting Wildfire Risk in Northern California"
+author: "Leah Shapiro and Palak Agarwal"
+date: "12/13/2020"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+# Introduction
+- explain the problem
+- visualize California fires
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(error = FALSE)
+```
+
+- explain our use case
+
+# Data
+-describe the data used:
+-fire perimeter
+- WUI
+- FVEG
+- Elevation
+- Slope
+- Land Cover
+- County
+- Weather (temp, precip, humidity, wind speed)
+- describe feature engineering
+
+```{r data, message=FALSE, warning=FALSE}
+
+```
+
+
+## Exploratory Analysis
+- bar plots
+- correlation matrix
+- maybe some maps?
+
+```{r exploratory, message=FALSE, warning=FALSE}
+
+```
+
+## Describe the Spatial Process/ Space Time Process
+
+# Model
+- explain rare event problem
+- list features in model
+- discuss statistical significance
+
+```{r model, message=FALSE, warning=FALSE}
+
+```
+
+
+## Goodness of Fit
+-McFadden
+-Density of probabilities plot
+-Confusion Matrix
+-ROC Curve

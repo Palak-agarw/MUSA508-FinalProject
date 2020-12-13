@@ -12,6 +12,7 @@ library(gridExtra)
 library(ggcorrplot)
 library(jtools)  
 library(viridis)
+
 library(kableExtra)
 library(rlist)
 library(dplyr)
@@ -610,15 +611,14 @@ fireTest  <- fishnet_clipped[-trainIndex,] %>% st_drop_geometry()
 # MODEL
 fireModel <- glm(Fire1418 ~ .,
                     data=fireTrain %>% 
-                      dplyr::select(-ID,-Fire19,-weather_ID, -WUI_MAJ, 
+                      dplyr::select(-ID,-Fire19,-weather_ID, -WUI_MAJ, -WUI.nn, 
                                     -MeanMaxTemp,-FIRE, -CoverCat, -ElevationBi,
-                                    -Fire.nn, -WUI.nn, -SlopeCat, -MeanPrecip1418, -Max_Temp19, 
+                                    -Fire.nn, -SlopeCat, -MeanPrecip1418, -Max_Temp19, 
                                     -Mean_Temp19, -Mean_Precipitation19, 
                                     -Mean_Humidity19, -Mean_Wind_Speed19, -Fire1013),
                     family="binomial" (link="logit"))
 
 summary(fireModel)
-
 
 ## Adding Coefficients
 x <- fireModel$coefficients
@@ -653,7 +653,7 @@ ggplot(testProbs, aes(x = Probs, fill = as.factor(Outcome))) +
 ### Might want to change this threshold, here a probability >50% if being predicted as takes credit
 testProbs <- 
   testProbs %>%
-  mutate(predOutcome  = as.factor(ifelse(testProbs$Probs > 0.10 , 1, 0)))
+  mutate(predOutcome  = as.factor(ifelse(testProbs$Probs > 0.2 , 1, 0)))
 
 caret::confusionMatrix(testProbs$predOutcome, testProbs$Outcome, 
                        positive = "1")
@@ -667,6 +667,70 @@ ggplot(testProbs, aes(d = as.numeric(testProbs$Outcome), m = Probs)) +
   style_roc(theme = theme_grey) +
   geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
   labs(title = "ROC Curve - Model with Feature Engineering")
+
+# Testing model on 2019
+fireModel19 <- glm(Fire19 ~ .,
+                 data=fishnet_clipped %>% st_drop_geometry()%>%
+                   dplyr::select(-ID,-weather_ID, -Fire1418, -WUI_MAJ, -WUI.nn, 
+                                 -MeanMaxTemp,-FIRE, -CoverCat, -ElevationBi,
+                                 -Fire.nn, -SlopeCat, -MeanPrecip1418, -MeanMaxTemp, 
+                                 -MeanTemp1418, -Mean_Precipitation19, 
+                                 -MeanHumidity1418, -MeanWindSpeed1418, -Fire1013),
+                 family="binomial" (link="logit"))
+
+summary(fireModel19)
+
+testProbs19 <- data.frame(Outcome = as.factor(fishnet_clipped$Fire19),
+                        Probs = predict(fireModel19, fishnet_clipped, type= "response"))
+
+testProbs19nofire <- testProbs19 %>% filter(Outcome==0)
+testProbs19fire <- testProbs19 %>% filter (Outcome==1)
+
+hist(testProbs19nofire$Probs)
+hist(testProbs19fire$Probs)
+
+##0.005986742
+mean(testProbs19nofire$Probs)
+
+##0.2573636
+mean(testProbs19fire$Probs)
+
+## Confusion Matrix for 2019 at .25 threshold
+testProbs19 <- 
+  testProbs19 %>%
+  mutate(predOutcome  = as.factor(ifelse(testProbs19$Probs > 0.25 , 1, 0)))
+
+caret::confusionMatrix(testProbs19$predOutcome, testProbs$Outcome, 
+                       positive = "1")
+
+# K Fold Model Validation
+ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFunction=twoClassSummary)
+
+cvFit <- train(Fire1418 ~ ., data = fishnet_clipped %>% st_drop_geometry() %>%
+                 dplyr::select(
+                   -ID,-Fire19,-weather_ID, -WUI_MAJ,
+                   -MeanMaxTemp,-FIRE, -CoverCat, -ElevationBi,
+                   -Fire.nn, -SlopeCat, -MeanPrecip1418, -Max_Temp19, 
+                   -Mean_Temp19, -Mean_Precipitation19, 
+                   -Mean_Humidity19, -Mean_Wind_Speed19, -Fire1013)%>%
+                 dplyr::mutate(Fire1418=ifelse(Fire1418==1,"Fire","No_Fire")),
+               method="glm", family="binomial",
+               metric="ROC", trControl = ctrl)
+
+cvFit
+
+dplyr::select(cvFit$resample, -Resample) %>%
+  gather(metric, value) %>%
+  left_join(gather(cvFit$results[2:4], metric, mean)) %>%
+  ggplot(aes(value)) + 
+  geom_histogram(bins=35, fill = "#FF006A") +
+  facet_wrap(~metric) +
+  geom_vline(aes(xintercept = mean), colour = "#981FAC", linetype = 3, size = 1.5) +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Goodness of Fit", y="Count", title="CV Goodness of Fit Metrics",
+       subtitle = "Across-fold mean reprented as dotted lines") +
+  plotTheme()
+
 
 # Model Validation
 crossValidate <- function(dataset, id, dependentVariable, indVariables) {
@@ -702,7 +766,7 @@ crossValidate <- function(dataset, id, dependentVariable, indVariables) {
 reg.vars <- c("FVEG_MAJ","ELEVATION_AV","SLOPE_MEAN", "COVER_MAJ","COUNTY_NAME",
               "MeanTemp1418","MeanHumidity1418","MeanWindSpeed1418",
               "n_fires_intersections","Conifer.nn","Shrub.nn","Hardwood.nn",
-              "Facilities.nn")
+              "Facilities.nn","WUI.nn")
 
 reg.spatialCV <- crossValidate(
   dataset = fishnet_clipped,
