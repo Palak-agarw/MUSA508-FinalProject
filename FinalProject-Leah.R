@@ -25,6 +25,7 @@ library(pscl)
 library(pROC)
 library(plotROC)
 library(RANN)
+library(riem)
 options(scipen=999)
 options(tigris_class = "sf")
 
@@ -44,6 +45,7 @@ mapTheme <- function(base_size = 12) {
     panel.border = element_rect(colour = "black", fill=NA, size=2)
   )
 }
+
 plotTheme <- function(base_size = 12) {
   theme(
     text = element_text( color = "black"),
@@ -67,6 +69,7 @@ plotTheme <- function(base_size = 12) {
   )
 }
 
+# CHANGE THESE
 palette5 <- c("#25CB10", "#5AB60C", "#8FA108",   "#C48C04", "#FA7800")
 palette2 <- c("#981FAC","#FF006A")
 
@@ -79,6 +82,7 @@ qBr <- function(df, variable, rnd) {
                  c(.01,.2,.4,.6,.8), na.rm=T)
   }
 }
+
 q5 <- function(variable) {as.factor(ntile(variable, 5))}
 
 # FUNCTIONS
@@ -186,6 +190,9 @@ multipleRingBuffer <- function(inputPolygon, maxDistance, interval)
 
 ## READ IN DATA
 
+all_counties <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/counties.shp") %>%
+  st_transform('EPSG:2225')
+
 fire_pt <- st_read("https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/arcgis/rest/services/California_Fire_Perimeters/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson")%>%
   st_transform('EPSG:2225')
 
@@ -205,10 +212,23 @@ fishnet_clipped <- st_intersection(fishnet_unclipped,selected_counties)
 fishnet_clipped <- fishnet_clipped %>% dplyr::select(WUI_MAJORI,FVEG_MAJOR,ELEVATION_,
                                                      SLOPE_MEAN,COVER_MAJ,JUL1819_ME,
                                                      AUG1819_ME, SEP1819_ME, OCT1819_ME,
-                                                     COUNTY_NAME, geometry)
+                                                     COUNTY_NAME, geometry) %>%
+  rename (WUI_MAJ=WUI_MAJORI, 
+          FVEG_MAJ=FVEG_MAJOR,
+          ELEVATION_AV=ELEVATION_,
+          JULY_AVTEMP=JUL1819_ME,
+          AUG_AVTEMP=AUG1819_ME,
+          SEP_AVTEMP=SEP1819_ME,
+          OCT_AVTEMP=OCT1819_ME)
 
-# Replacing NAs with the mean
-fishnet_clipped$AUG1819_ME <- ifelse(is.na(fishnet_clipped$AUG1819_ME), 15188.16, fishnet_clipped$AUG1819_ME) 
+# Replacing NAs with the mean, remove?
+fishnet_clipped$JULY_AVTEMP <- ifelse(is.na(fishnet_clipped$JULY_AVTEMP), 15188.16, fishnet_clipped$JULY_AVTEMP) 
+
+fishnet_clipped$AUG_AVTEMP <- ifelse(is.na(fishnet_clipped$AUG_AVTEMP), 15188.16, fishnet_clipped$AUG_AVTEMP) 
+
+fishnet_clipped$SEP_AVTEMP <- ifelse(is.na(fishnet_clipped$SEP_AVTEMP), 15071.67, fishnet_clipped$SEP_AVTEMP) 
+
+fishnet_clipped$OCT_AVTEMP <- ifelse(is.na(fishnet_clipped$OCT_AVTEMP), 14748.27, fishnet_clipped$OCT_AVTEMP) 
 
 # Adding Unique IDs for each cell
 fishnet_clipped$ID <-  seq.int(nrow(fishnet_clipped))
@@ -219,10 +239,6 @@ fire_perimeter1418 <-
   fire_pt %>%
   filter(YEAR_  == '2014' | YEAR_  == '2015' | YEAR_  == '2016' | YEAR_ =='2017' | YEAR_  == '2018') %>%
   st_transform('EPSG:2225')
-
-ggplot() +
-  geom_sf(data = fire_perimeter1418)+
-  geom_sf(data = selected_counties, fill = 'transparent')
 
 clip1418 <- 
   st_intersection(st_make_valid(fire_perimeter1418),st_make_valid(fishnet_clipped)) %>%
@@ -243,10 +259,6 @@ fire_perimeter19 <-
   filter(YEAR_ =='2019') %>%
   st_transform('EPSG:2225')
 
-ggplot() +
-  geom_sf(data = fire_perimeter19)+
-  geom_sf(data = selected_counties, fill = 'transparent')
-
 clip19 <- 
   st_intersection(st_make_valid(fire_perimeter19),st_make_valid(fishnet_clipped)) %>%
   select(ID) %>%
@@ -262,14 +274,209 @@ fishnet_clipped$Fire19 <- ifelse(is.na(fishnet_clipped$Fire19),0, fishnet_clippe
 
 ## WEATHER DATA
 
+# vector 1 - of southern california station ids
+weather_station_ids <- c("SIY", "CEC", "MHS", "O86", "ACV", "FOT", "RDD", "RBL", "CIC", "OVE",
+                         "UKI", "MYV", "STS", "O69", "DVO", "APC", "SUU", "VCB", "EDU", "SMF", "LHM", "MYV")
+
+# df - stations with lat/lon and name info (in addition to ids)
+asos_socal_stations <- riem_stations("CA_ASOS") %>% filter(str_detect(id, paste(weather_station_ids, collapse="|")))
+asos_socal_stations$weather_station_id <- asos_socal_stations$id
+asos_socal_stations <-  st_as_sf(asos_socal_stations, coords = c("lon","lat"), crs = 4326, agr = "constant") %>% st_transform('EPSG:2225')
+asos_socal_stations$weather_ID <-  seq.int(nrow(asos_socal_stations))
+
+## Finding closest station
+weather_coords <- 
+  asos_socal_stations %>%
+  select(geometry)
+
+fishnet_coords <- 
+  fishnet_clipped %>%
+  select(geometry)
+
+closest_weather_station_to_fishnet <- nn2(weather_coords, fishnet_coords, k = 1)$nn.idx
+
+fishnet_clipped$weather_ID <- closest_weather_station_to_fishnet
+
+ggplot()+
+  geom_sf(data = selected_counties)+
+  geom_sf(data = weather_coords)
+
+# function and loop -- tried it with the vector of ids and the df of all info, but neither worked. This version below uses just the vector of station ids
+get_weather_features_by_station <- function(weather_station_ids, start_year, end_year){
+  
+  year_vec <- seq(start_year, end_year)
+  i <- 1
+  weather_data_list <- list()
+  for(station_id in weather_station_ids){
+    print(paste("Processing station", station_id))
+    for(year in year_vec){
+      start_date = paste0(year, "07-01")
+      end_date = paste0(year, "10-31")
+      weather_data <- riem_measures(station = station_id, date_start = start_date, date_end = end_date) %>% 
+        dplyr::summarise(weather_station_id = station_id,
+                         year = year,
+                         Max_Temp = max(tmpf, na.rm = TRUE),
+                         Mean_Temp = mean(tmpf, na.rm = TRUE),
+                         Mean_Precipitation = mean(p01i, na.rm = TRUE),
+                         Mean_Humidity = mean(relh, na.rm = TRUE),
+                         Mean_Wind_Speed = mean(sknt, na.rm = TRUE),
+        ) 
+      weather_data_list[[i]] <- weather_data
+      i <- i + 1
+    }
+  }
+  
+  do.call("rbind", weather_data_list) 
+}
+
+weather_data2014 <- get_weather_features_by_station(weather_station_ids, 2014, 2014) %>%
+  rename(Max_Temp14 = Max_Temp,
+         Mean_Temp14 = Mean_Temp,
+         Mean_Precipitation14 = Mean_Precipitation,
+         Mean_Humidity14 = Mean_Humidity,
+         Mean_Wind_Speed14 = Mean_Wind_Speed)
+
+weather_2014 <- left_join(weather_data2014, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry) %>%
+  distinct() 
+
+fishnet_clipped <- left_join(fishnet_clipped, weather_2014, on = "weather_ID")
+
+weather_data2015 <- get_weather_features_by_station(weather_station_ids, 2015, 2015) %>%
+  rename(Max_Temp15 = Max_Temp,
+         Mean_Temp15 = Mean_Temp,
+         Mean_Precipitation15 = Mean_Precipitation,
+         Mean_Humidity15 = Mean_Humidity,
+         Mean_Wind_Speed15 = Mean_Wind_Speed)
+
+weather_2015 <- left_join(weather_data2015, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry) %>%
+  distinct()
+
+fishnet_clipped <- left_join(fishnet_clipped, weather_2015, on = "weather_ID")
+
+weather_data2016 <- get_weather_features_by_station(weather_station_ids, 2016, 2016) %>%
+  rename(Max_Temp16 = Max_Temp,
+         Mean_Temp16 = Mean_Temp,
+         Mean_Precipitation16 = Mean_Precipitation,
+         Mean_Humidity16 = Mean_Humidity,
+         Mean_Wind_Speed16 = Mean_Wind_Speed)
+
+weather_2016 <- left_join(weather_data2016, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry)%>%
+  distinct() 
+
+fishnet_clipped <- left_join(fishnet_clipped, weather_2016, on = "weather_ID")
+
+weather_data2017 <- get_weather_features_by_station(weather_station_ids, 2017, 2017) %>%
+  rename(Max_Temp17 = Max_Temp,
+         Mean_Temp17 = Mean_Temp,
+         Mean_Precipitation17 = Mean_Precipitation,
+         Mean_Humidity17 = Mean_Humidity,
+         Mean_Wind_Speed17 = Mean_Wind_Speed)
+
+weather_2017 <- left_join(weather_data2017, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry)%>%
+  distinct() 
+
+fishnet_clipped <- left_join(fishnet_clipped, weather_2017, on = "weather_ID")
+
+weather_data2018 <- get_weather_features_by_station(weather_station_ids, 2018, 2018) %>%
+  rename(Max_Temp18 = Max_Temp,
+         Mean_Temp18 = Mean_Temp,
+         Mean_Precipitation18 = Mean_Precipitation,
+         Mean_Humidity18 = Mean_Humidity,
+         Mean_Wind_Speed18 = Mean_Wind_Speed)
+
+weather_2018 <- left_join(weather_data2018, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry)%>%
+  distinct() 
+
+fishnet_clipped <- left_join(fishnet_clipped, weather_2018, on = "weather_ID")
+
+weather_data2019 <- get_weather_features_by_station(weather_station_ids, 2019, 2019) %>%
+  rename(Max_Temp19 = Max_Temp,
+         Mean_Temp19 = Mean_Temp,
+         Mean_Precipitation19 = Mean_Precipitation,
+         Mean_Humidity19 = Mean_Humidity,
+         Mean_Wind_Speed19 = Mean_Wind_Speed)
+
+weather_2019 <- left_join(weather_data2019, asos_socal_stations, on = 'weather_station_id') %>%
+  select (-weather_station_id, -id, -name, -year, -geometry)%>%
+  distinct() 
+
+fishnet_clipped <- left_join(fishnet_clipped, weather_2019, on = "weather_ID")
+
 # EXPLORATORY ANALYSIS
 
+fire_perimeter1019 <- fire_pt %>% filter(YEAR_=="2010"|YEAR_=="2011"|YEAR_=="2012"|YEAR_=="2013"|YEAR_=="2014"|YEAR_=="2015"|YEAR_=="2016"|YEAR_=="2017"|YEAR_=="2018"|YEAR_=="2019")
+
+ggplot() +
+  geom_sf(data = fire_perimeter1019, fill="orange")+
+ geom_sf(data=all_counties, fill="transparent")+ 
+  labs(title="California Wildfires",
+       subtitle="Years 2010-2019")+
+  mapTheme()
+
+## Showing our selected counties
+ggplot() +
+  geom_sf(data = fire_perimeter1019, fill="orange", color="transparent")+
+  geom_sf(data=all_counties, fill="transparent")+ 
+  geom_sf(data=selected_counties, fill="transparent", color="blue", size=1)+
+  labs(title="California Wildfires",
+       subtitle="Years 2010-2019; Selected Counties in Blue")+
+  mapTheme()
+
 # FEATURE ENGINEERING
+# Finding Means of Weather data
+fishnet_clipped$MeanTemp1418 = (fishnet_clipped$Mean_Temp14+
+                                  fishnet_clipped$Mean_Temp15+
+                                  fishnet_clipped$Mean_Temp16+
+                                  fishnet_clipped$Mean_Temp17+
+                                  fishnet_clipped$Mean_Temp18)/5
+
+fishnet_clipped$MeanHumidity1418 = (fishnet_clipped$Mean_Humidity14+
+                                      fishnet_clipped$Mean_Humidity15+
+                                      fishnet_clipped$Mean_Humidity16+
+                                      fishnet_clipped$Mean_Humidity17+
+                                      fishnet_clipped$Mean_Humidity18)/5
+
+fishnet_clipped$MeanPrecip1418 = (fishnet_clipped$Mean_Precipitation14+
+                                    fishnet_clipped$Mean_Precipitation15+
+                                    fishnet_clipped$Mean_Precipitation16+
+                                    fishnet_clipped$Mean_Precipitation17+
+                                    fishnet_clipped$Mean_Precipitation18)/5
+
+fishnet_clipped$MeanWindSpeed1418 = (fishnet_clipped$Mean_Wind_Speed14+
+                                       fishnet_clipped$Mean_Wind_Speed15+
+                                       fishnet_clipped$Mean_Wind_Speed16+
+                                       fishnet_clipped$Mean_Wind_Speed17+
+                                       fishnet_clipped$Mean_Wind_Speed18)/5
+
+fishnet_clipped$MeanMaxTemp = (fishnet_clipped$Max_Temp14+
+                                 fishnet_clipped$Max_Temp15+
+                                 fishnet_clipped$Max_Temp16+
+                                 fishnet_clipped$Max_Temp17+
+                                 fishnet_clipped$Max_Temp18)/5
+
+# Remove Unnecessary Variables
+fishnet_clipped <- fishnet_clipped %>% dplyr::select (-JULY_AVTEMP,-AUG_AVTEMP,
+                                                      -SEP_AVTEMP,-OCT_AVTEMP,
+                                                      -Mean_Temp14,-Mean_Temp15,-Mean_Temp16,-Mean_Temp17,
+                                                      -Mean_Temp18,-Mean_Humidity14,-Mean_Humidity15,
+                                                      -Mean_Humidity16,-Mean_Humidity17,-Mean_Humidity18,
+                                                      -Mean_Precipitation14,-Mean_Precipitation15,
+                                                      -Mean_Precipitation16, -Mean_Precipitation17,
+                                                      -Mean_Precipitation18,-Mean_Wind_Speed14,
+                                                      -Mean_Wind_Speed15,-Mean_Wind_Speed16,
+                                                      -Mean_Wind_Speed17,-Mean_Wind_Speed18,
+                                                      -Max_Temp14,-Max_Temp15,-Max_Temp16,-Max_Temp17,-Max_Temp18)
+
 ## Changing Integers to Characters
 
-fishnet_clipped$WUI_MAJORI <- as.factor(fishnet_clipped$WUI_MAJORI)
+fishnet_clipped$WUI_MAJ <- as.factor(fishnet_clipped$WUI_MAJ)
 
-fishnet_clipped$FVEG_MAJOR <- as.factor(fishnet_clipped$FVEG_MAJOR)
+fishnet_clipped$FVEG_MAJ <- as.factor(fishnet_clipped$FVEG_MAJ)
 
 fishnet_clipped$COVER_MAJ <- as.factor(fishnet_clipped$COVER_MAJ)
 
@@ -292,6 +499,17 @@ fishnet_clipped <-
 
 fishnet_clipped$Fire1013 <- ifelse(is.na(fishnet_clipped$Fire1013),0, fishnet_clipped$Fire1013)
 
+## Historical fire
+##intersections of fire perimeters with each fishnet cell.
+fishnet_clipped <- 
+  fishnet_clipped %>% 
+  mutate(n_fires_intersections = lengths(st_intersects(st_make_valid(fishnet_clipped), st_make_valid(fire_pt))))
+
+## adding a column for y/n for historical fire presence
+#fishnet_clipped <-
+ # fishnet_clipped %>%
+  #mutate(prev_fire = ifelse(fishnet_clipped$n_fires_intersections > 0, "1", "0"))
+
 ## Categorical Features
 fishnet_clipped <- fishnet_clipped %>% mutate(CoverCat = case_when(fishnet_clipped$COVER_MAJ=="1"|fishnet_clipped$COVER_MAJ=="2"|fishnet_clipped$COVER_MAJ=="4" ~ "forest",
                                               fishnet_clipped$COVER_MAJ=="6"|fishnet_clipped$COVER_MAJ=="7" ~ "shrubland",
@@ -306,17 +524,20 @@ fishnet_clipped <- fishnet_clipped %>% mutate(SlopeCat = case_when(fishnet_clipp
                                                                    fishnet_clipped$SLOPE_MEAN >=5|fishnet_clipped$SLOPE_MEAN <15 ~ "medium",
                                                                    fishnet_clipped$SLOPE_MEAN >=15 ~ "high" ))
 
+## Replacing Land Cover type 15 (perm snow and ice) with type 17 (waterbodies)
+fishnet_clipped$COVER_MAJ <- ifelse(fishnet_clipped$COVER_MAJ=="15","17",fishnet_clipped$COVER_MAJ)
+
 ## Dummy Feature
-fishnet_clipped <- fishnet_clipped %>% mutate (ElevationBi = if_else(fishnet_clipped$ELEVATION_>3000,1,0))
+fishnet_clipped <- fishnet_clipped %>% mutate (ElevationBi = if_else(fishnet_clipped$ELEVATION_AV>3000,1,0))
 
 ## Nearest Neighbor Features
-conifer_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="1") %>% st_centroid()
+conifer_points <- fishnet_clipped %>% filter(FVEG_MAJ=="1") %>% st_centroid()
 
-shrub_points<- fishnet_clipped %>% filter(FVEG_MAJOR=="2") %>% st_centroid()
+shrub_points<- fishnet_clipped %>% filter(FVEG_MAJ=="2") %>% st_centroid()
 
-hardwood_points <- fishnet_clipped %>% filter(FVEG_MAJOR=="6") %>% st_centroid()
+hardwood_points <- fishnet_clipped %>% filter(FVEG_MAJ=="6") %>% st_centroid()
 
-wui_points <- fishnet_clipped %>% filter(WUI_MAJORI=="4") %>% st_centroid()
+wui_points <- fishnet_clipped %>% filter(WUI_MAJ=="4") %>% st_centroid()
 
 fire1013_points <- fishnet_clipped %>% filter(Fire1013=="1") %>% st_centroid()
 
@@ -337,67 +558,63 @@ fishnet_clipped <- fishnet_clipped %>%
 
 # DATA VISUALIZATIONS
 ##continuous variables
-###Warning message: Removed 5546 rows containing non-finite values (stat_summary). 
+### Need to fix legend here
+fishnet_clipped$FIRE <- ifelse(fishnet_clipped$Fire1418==1,"Fire","No_Fire")
 
 fishnet_clipped %>% st_drop_geometry() %>%
-  dplyr::select(Fire1418, ELEVATION_, SLOPE_MEAN,JUL1819_ME, AUG1819_ME,
-                SEP1819_ME,OCT1819_ME, Conifer.nn, Shrub.nn, Hardwood.nn, 
+  dplyr::select(FIRE, ELEVATION_AV, SLOPE_MEAN,MeanMaxTemp, MeanTemp1418,MeanHumidity1418,
+                MeanPrecip1418,MeanWindSpeed1418, n_fires_intersections, Conifer.nn, Shrub.nn, Hardwood.nn, 
                 Facilities.nn, WUI.nn) %>%
-  rename("Elevation" = ELEVATION_, "Slope" = SLOPE_MEAN, "July Temp"=JUL1819_ME,
-         "August Temp"=AUG1819_ME,"September Temp"=SEP1819_ME,"October Temp"=OCT1819_ME,
-        "Dist. to Conifer"=Conifer.nn, "Dist. to Shrub"=Shrub.nn, "Dist. to Hardwood"=Hardwood.nn,
-        "Dist. to Nearest 3 Facilities"=Facilities.nn, "Distance to Wildland/Urban Interface"=WUI.nn) %>%
-  gather(Variable, value, -Fire1418) %>%
-  ggplot(aes(Fire1418, value, fill=Fire1418)) + 
+  rename("Elevation" = ELEVATION_AV, "Slope" = SLOPE_MEAN) %>%
+  gather(Variable, value, -FIRE) %>%
+  ggplot(aes(FIRE, value, fill=FIRE)) + 
   geom_bar(position = "dodge", stat = "summary", fun = "mean") + 
   facet_wrap(~Variable, scales = "free") +
   #scale_fill_manual(values = palette2) +
-  labs(x="y", y="Value", 
+  labs(x="Fire", y="Mean", 
        title = "Feature associations with the likelihood of Wildfire",
        subtitle = "(continous outcomes)") +
   theme(legend.position = "none")
 
-# CORRELATIONS
 
-correlation.long <-
-  st_drop_geometry(fishnet_clipped) %>%
-  dplyr::select(-WUI_MAJORI,-FVEG_MAJOR,-COVER_MAJ,-COUNTY_NAME,-ID, -Fire19) %>%
-  gather(Variable, Value, -Fire1418)
+# Identifying Colinearity 
+numericVars <- select_if(fishnet_clipped, is.numeric) %>% na.omit() %>% st_drop_geometry() %>%
+  dplyr::select(ELEVATION_AV,SLOPE_MEAN,MeanTemp1418,MeanHumidity1418,
+                MeanPrecip1418,MeanWindSpeed1418,MeanMaxTemp, n_fires_intersections,Conifer.nn, Shrub.nn, Hardwood.nn, 
+                Facilities.nn, WUI.nn)
 
-# This isn't working
-correlation.cor <-
-  correlation.long %>%
-  group_by(Variable) %>%
-  summarize(correlation = cor(Value, Fire1418, use = "complete.obs"))
-
-ggplot(filter(correlation.long, Variable=="Abandoned Vehicles"), aes (x=Value, y=countViolations))+  
-  geom_point(size = 0.1) +
-  geom_text(data = filter(correlation.cor,Variable=="Abandoned Vehicles"), check_overlap=TRUE, aes(label = paste("r = ", round(correlation, 2))),
-            x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
-  geom_smooth(method = "lm", se = FALSE, colour = "black") +
-  xlab("Abandoned Vehicles") + ylab("Drug Violations") +
-  plotTheme()
-
+ggcorrplot(
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#25CB10", "white", "#FA7800"),
+  type="lower",
+  insig = "blank") +  
+  labs(title = "Correlation across Characteristics") 
 
 # LOGISTIC MODEL
-set.seed(3456)
-fireTrain1 <- fishnet_clipped %>% filter(Fire1418==1) %>% sample_n()
-fireTrain0 <- fishnet_clipped %>% filter(Fire1418==0) %>% sample_n()
-fireTrain <- rbind(fireTrain1,fireTrain0)
-fireTest <- fishnet_clipped[!(fishnet_clipped$ID %in% fireTrain$ID),]
+set.seed(1214)
+#fireTrain1 <- fishnet_clipped %>% filter(Fire1418==1) %>% sample_n()
+#fireTrain0 <- fishnet_clipped %>% filter(Fire1418==0) %>% sample_n()
+#fireTrain <- rbind(fireTrain1,fireTrain0)
+#fireTest <- fishnet_clipped[!(fishnet_clipped$ID %in% fireTrain$ID),]
 
-#trainIndex <- createDataPartition(fishnet_clipped$Fire1617, p = .65, 
-                                 # y = paste(fishnet_clipped$WUI_MAJORI),
-                                 # list = FALSE,
-                                  #times = 1)
-#fireTrain <- fishnet_clipped[ trainIndex,] %>% st_drop_geometry()
-#fireTest  <- fishnet_clipped[-trainIndex,] %>% st_drop_geometry()
+## Getting warning message that may be affecting levels
+trainIndex <- createDataPartition(fishnet_clipped$Fire1418, p = .65, 
+                                 y = paste(fishnet_clipped$COVER_MAJ),
+                                  list = FALSE,
+                                  times = 1)
+
+fireTrain <- fishnet_clipped[ trainIndex,] %>% st_drop_geometry()
+fireTest  <- fishnet_clipped[-trainIndex,] %>% st_drop_geometry()
 
 # MODEL
 fireModel <- glm(Fire1418 ~ .,
                     data=fireTrain %>% 
-                      dplyr::select(-WUI_MAJORI,Shape_Leng,
-                                    -Shape_Area,-ID),
+                      dplyr::select(-ID,-Fire19,-weather_ID, -WUI_MAJ, 
+                                    -MeanMaxTemp,-FIRE, -CoverCat, -ElevationBi,
+                                    -Fire.nn, -WUI.nn, -SlopeCat, -MeanPrecip1418, -Max_Temp19, 
+                                    -Mean_Temp19, -Mean_Precipitation19, 
+                                    -Mean_Humidity19, -Mean_Wind_Speed19, -Fire1013),
                     family="binomial" (link="logit"))
 
 summary(fireModel)
@@ -412,7 +629,7 @@ exp(x)
 pR2(fireModel)
 
 ## Prediction
-testProbs <- data.frame(Outcome = as.factor(fireTest$Fire1617),
+testProbs <- data.frame(Outcome = as.factor(fireTest$Fire1418),
                         Probs = predict(fireModel, fireTest, type= "response"))
 
 # Replace NAs with average prob
@@ -436,7 +653,7 @@ ggplot(testProbs, aes(x = Probs, fill = as.factor(Outcome))) +
 ### Might want to change this threshold, here a probability >50% if being predicted as takes credit
 testProbs <- 
   testProbs %>%
-  mutate(predOutcome  = as.factor(ifelse(testProbs$Probs > 0.2 , 1, 0)))
+  mutate(predOutcome  = as.factor(ifelse(testProbs$Probs > 0.10 , 1, 0)))
 
 caret::confusionMatrix(testProbs$predOutcome, testProbs$Outcome, 
                        positive = "1")
@@ -452,3 +669,181 @@ ggplot(testProbs, aes(d = as.numeric(testProbs$Outcome), m = Probs)) +
   labs(title = "ROC Curve - Model with Feature Engineering")
 
 # Model Validation
+crossValidate <- function(dataset, id, dependentVariable, indVariables) {
+  
+  allPredictions <- data.frame()
+  cvID_list <- unique(dataset[[id]])
+  
+  for (i in cvID_list) {
+    
+    thisFold <- i
+    cat("This hold out fold is", thisFold, "\n")
+    
+    fold.train <- filter(dataset, dataset[[id]] != thisFold) %>% as.data.frame() %>% 
+      dplyr::select(id, geometry, indVariables, dependentVariable)
+    fold.test  <- filter(dataset, dataset[[id]] == thisFold) %>% as.data.frame() %>% 
+      dplyr::select(id, geometry, indVariables, dependentVariable)
+    
+    regression <-
+      glm(Fire1418 ~ ., family = "binomial", 
+          data = fold.train %>% 
+            dplyr::select(-geometry, -id))
+    
+    thisPrediction <- 
+      mutate(fold.test, Prediction = predict(regression, fold.test, type = "response"))
+    
+    allPredictions <-
+      rbind(allPredictions, thisPrediction)
+    
+  }
+  return(st_sf(allPredictions))
+}
+
+reg.vars <- c("FVEG_MAJ","ELEVATION_AV","SLOPE_MEAN", "COVER_MAJ","COUNTY_NAME",
+              "MeanTemp1418","MeanHumidity1418","MeanWindSpeed1418",
+              "n_fires_intersections","Conifer.nn","Shrub.nn","Hardwood.nn",
+              "Facilities.nn")
+
+reg.spatialCV <- crossValidate(
+  dataset = fishnet_clipped,
+  id = "COUNTY_NAME",
+  dependentVariable = "Fire1418",
+  indVariables = reg.vars) 
+
+reg.spatialcv <-
+  reg.spatialCV %>%
+  dplyr::select(cvID = COUNTY_NAME, Fire1418, Prediction, geometry)
+
+ggplot() +
+  geom_sf(data = reg.spatialcv, aes(fill = Prediction), color = "transparent")+
+  geom_sf(data = fire_perimeter1418, fill = "transparent", color = "red")
+
+reg.spatialcv <-
+  reg.spatialcv %>%
+  mutate(Error = Prediction - Fire1418)
+
+ggplot() +
+  geom_sf(data = reg.spatialcv, aes(fill = Error), color = "transparent")
+
+# Visualize goodness of fit metrics?
+
+# Cost-Benefit Table (from book)
+cost_benefit_table <-
+  testProbs %>%
+  count(predOutcome, Outcome) %>%
+  summarize(True_Negative = sum(n[predOutcome==0 & Outcome==0]),
+            True_Positive = sum(n[predOutcome==1 & Outcome==1]),
+            False_Negative = sum(n[predOutcome==0 & Outcome==1]),
+            False_Positive = sum(n[predOutcome==1 & Outcome==0])) %>%
+  gather(Variable, Count) %>%
+  mutate(Revenue =
+           case_when(Variable == "True_Negative"  ~ Count * 30,
+                     Variable == "True_Positive"  ~ ((30 - 8) * (Count * .50)) + 
+                       (-32 * (Count * .50)),
+                     Variable == "False_Negative" ~ (-30) * Count,
+                     Variable == "False_Positive" ~ (30 - 8) * Count)) %>%
+  bind_cols(data.frame(Description = c(
+    "We predicted no churn and did not send a mailer",
+    "We predicted churn and sent the mailer",
+    "We predicted no churn and the customer churned",
+    "We predicted churn and the customer did not churn")))
+
+# Finding Optimal Threshold
+
+iterateThresholds <- function(data, observedClass, predictedProbs, group) {
+  #This function takes as its inputs, a data frame with an observed binomial class (1 or 0); a vector of predicted probabilities; and optionally a group indicator like race. It returns accuracy plus counts and rates of confusion matrix outcomes. It's a bit verbose because of the if (missing(group)). I don't know another way to make an optional parameter.
+  observedClass <- enquo(observedClass)
+  predictedProbs <- enquo(predictedProbs)
+  group <- enquo(group)
+  x = .01
+  all_prediction <- data.frame()
+  
+  if (missing(group)) {
+    
+    while (x <= 1) {
+      this_prediction <- data.frame()
+      
+      this_prediction <-
+        data %>%
+        mutate(predclass = ifelse(!!predictedProbs > x, 1,0)) %>%
+        count(predclass, !!observedClass) %>%
+        summarize(Count_TN = sum(n[predclass==0 & !!observedClass==0]),
+                  Count_TP = sum(n[predclass==1 & !!observedClass==1]),
+                  Count_FN = sum(n[predclass==0 & !!observedClass==1]),
+                  Count_FP = sum(n[predclass==1 & !!observedClass==0]),
+                  Rate_TP = Count_TP / (Count_TP + Count_FN),
+                  Rate_FP = Count_FP / (Count_FP + Count_TN),
+                  Rate_FN = Count_FN / (Count_FN + Count_TP),
+                  Rate_TN = Count_TN / (Count_TN + Count_FP),
+                  Accuracy = (Count_TP + Count_TN) / 
+                    (Count_TP + Count_TN + Count_FN + Count_FP)) %>%
+        mutate(Threshold = round(x,2))
+      
+      all_prediction <- rbind(all_prediction,this_prediction)
+      x <- x + .01
+    }
+    return(all_prediction)
+  }
+  else if (!missing(group)) { 
+    while (x <= 1) {
+      this_prediction <- data.frame()
+      
+      this_prediction <-
+        data %>%
+        mutate(predclass = ifelse(!!predictedProbs > x, 1,0)) %>%
+        group_by(!!group) %>%
+        count(predclass, !!observedClass) %>%
+        summarize(Count_TN = sum(n[predclass==0 & !!observedClass==0]),
+                  Count_TP = sum(n[predclass==1 & !!observedClass==1]),
+                  Count_FN = sum(n[predclass==0 & !!observedClass==1]),
+                  Count_FP = sum(n[predclass==1 & !!observedClass==0]),
+                  Rate_TP = Count_TP / (Count_TP + Count_FN),
+                  Rate_FP = Count_FP / (Count_FP + Count_TN),
+                  Rate_FN = Count_FN / (Count_FN + Count_TP),
+                  Rate_TN = Count_TN / (Count_TN + Count_FP),
+                  Accuracy = (Count_TP + Count_TN) / 
+                    (Count_TP + Count_TN + Count_FN + Count_FP)) %>%
+        mutate(Threshold = round(x,2))
+      
+      all_prediction <- rbind(all_prediction,this_prediction)
+      x <- x + .01
+    }
+    return(all_prediction)
+  }
+}
+
+whichThreshold <- 
+  iterateThresholds(
+    data=testProbs, observedClass = Outcome, predictedProbs = Probs)
+
+whichThreshold <- 
+  whichThreshold %>%
+  dplyr::select(starts_with("Count"), Threshold) %>%
+  gather(Variable, Count, -Threshold) %>%
+  mutate(Revenue =
+           case_when(Variable == "Count_TN"  ~ Count * 30,
+                     Variable == "Count_TP"  ~ ((30 - 8) * (Count * .50)) + 
+                       (-32 * (Count * .50)),
+                     Variable == "Count_FN"  ~ (-30) * Count,
+                     Variable == "Count_FP"  ~ (30 - 8) * Count))
+
+whichThreshold %>%
+  ggplot(.,aes(Threshold, Revenue, colour = Variable)) +
+  geom_point() +
+  scale_colour_manual(values = palette5[c(5, 1:3)]) +    
+  labs(title = "Revenue by confusion matrix type and threshold",
+       y = "Revenue") +
+  plotTheme() +
+  guides(colour=guide_legend(title = "Confusion Matrix"))
+
+whichThreshold_revenue <- 
+  whichThreshold %>% 
+  mutate(actualChurn = ifelse(Variable == "Count_TP", (Count * .5),
+                              ifelse(Variable == "Count_FN", Count, 0))) %>% 
+  group_by(Threshold) %>% 
+  summarize(Revenue = sum(Revenue),
+            Actual_Churn_Rate = sum(actualChurn) / sum(Count),
+            Actual_Churn_Revenue_Loss =  sum(actualChurn * 30),
+            Revenue_Next_Period = Revenue - Actual_Churn_Revenue_Loss) 
+
+# Need to provide additional maps and data visualizations to show that the model is useful
