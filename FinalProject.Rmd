@@ -150,9 +150,9 @@ ggplot() +
   mapTheme()
 ```
 
-In california, homeowners in areas with high wildfire risk are required to take certain preventative measures, including clearing flammable vegetation around their home and keeping their roof clear of leaves (Public Resources Code, n.d.). Cal Fire, the state fireighting agency, is responsible for inspecting many of the state's properties for compliance with these regulations and for educating homeowners on what they should be doing to mitigate their risk.  However, due to limited funding, Cal Fire is not able to complete their inspections. In 2018, Cal Fire inspected only 17% of the properties within their jursidiction. In Northern California, which includes some of the highest risk fire areas in the state, the inspection rates are even lower (Sommer, 2019).
+In california, homeowners in areas with high wildfire risk are required to take certain preventative measures, including clearing flammable vegetation around their home and keeping their roof clear of leaves (Public Resources Code, n.d.). Cal Fire, the state fireighting agency, is responsible for inspecting many of the state's properties for compliance with these regulations and for educating homeowners about how to mitigate their fire risk. However, due to limited funding, Cal Fire is not able to complete their inspections. In 2018, Cal Fire inspected only 17% of the properties within their jursidiction. In Northern California, which includes some of the highest risk fire areas in the state, the inspection rates are even lower (Sommer, 2019).
 
-To support Cal Fire in their important work protecting California from fire, we have developed a mobile application called Spark Safe. Using the Spark Safe app, homeowners in 13 Northern California counties can enter their address and immediately learn their wildfire risk score. Those in high risk areas are prompted to submit an inspection through the app by taking photographs with their smart phones and completing a basic form. All users will also have access to educational content about wildfire prevention and safety through the app. Spark Safe will enable Cal Fire to dramatically expand their reach and will help to improve wildfire prevention compliance throughout the 13 counties. The following counties were included in the app due to having both high wildfire risk and low Cal Fire inspection rates:
+To support Cal Fire in their important work protecting California from fire, we have developed a mobile application called Spark Safe. Using the Spark Safe app, homeowners in 13 Northern California counties can enter their address and immediately learn their wildfire risk score. Those in high risk areas are prompted to submit an inspection through the app by taking photographs with their smart phones and completing a basic form. All users will also have access to educational content about wildfire prevention and safety through the app. Spark Safe will enable Cal Fire to dramatically expand their reach and help to improve wildfire prevention compliance throughout the 13 counties. The following counties are included in the app due to having both high wildfire risk and low Cal Fire inspection rates:
 
 + Colusa
 + Del Norte
@@ -168,7 +168,6 @@ To support Cal Fire in their important work protecting California from fire, we 
 + Trinity
 + Yolo
 
-
 ```{r maps2, message=FALSE, warning=FALSE}
 ## Showing our selected counties
 ggplot() +
@@ -180,23 +179,23 @@ ggplot() +
   mapTheme()
 ```
 
-Spark Safe's wildfire risk score is based on the probability of a wildfire occuring as predicted by a logistic regression. This document outlines how Spark Safe's data scientists developed that logistic regression. In sharing this, we hope to inspire other agencies to open the "black box" of algorithmic governance and to increase transparency in the algorithms used to inform public policy decisions.
+Spark Safe's wildfire risk score is based on the probability of a wildfire occuring in a given area as predicted by a logistic regression. This document outlines how Spark Safe's data scientists developed that logistic regression. In sharing this, we hope to inspire other agencies to open the "black box" of algorithmic governance and to increase transparency in the algorithms used to inform public policy decisions.
+
+Follow this link to view a short video about the Spark Safe app: INSERT YOUTUBE LINK HERE
 
 # Data
-
 The following datasets were used to develop the logistic model. All data is from publically available sources.
 
 + Fire perimeters in California dating from 1878 - 2019. These records are complete from 2002 to present.  
-+ Aspects of the wildlife urban interface (WUI) - interface, intermix, influence zone, and not WUI
++ Aspects of the wildlife urban interface (WUI): interface, intermix, influence zone, and not WUI
 + Vegetation types
 + Elevation
 + Land Cover
-+ County
-+ Weather (temp, precip, humidity, wind speed)
++ County borders
++ Weather, including temperature, precipitation, humidity, wind speed
 
 ## ArcMap Processing
-
-Many of the datasets were in raster form. Because R does not support raster well, we did our initial data wrangling in ArcMap. First, we created a .5 x.5 mile fishnet for the entire state. WHY DID WE CHOOSE THIS SIZE?
+Many of the datasets were available in raster form. Because R does not support raster well, we did our initial data wrangling in ArcMap. First, we created a .5 x.5 mile fishnet for the entire state. WHY DID WE CHOOSE THIS SIZE?
 
 (create_fishnet3.jpg)
 
@@ -208,18 +207,17 @@ We then calculated slope from the elevation data using the slope spatial analyst
 
 (slope.jpg)
 
-Using the zonal statistics as at table tool, we determined the majority value for each dataset represented in each fishnet gridcell. For slope and elevation, the mean was calculated rather than the majority.
+Using the zonal statistics as a table tool, we determined the majority value for each dataset represented in each fishnet gridcell. For slope and elevation, the mean was calculated rather than the majority.
 
 (zonal.jpg)
 
-We then joined each table to our fishnet based on the unique ID number of each fishnet grid cell. The final fishnet was exported as a shapefile and read into R.
+We then joined each zonal statistics table to our fishnet based on the unique ID number of the fishnet grid cells. The final fishnet was exported as a shapefile, read into R, and clipped to our 13 selected counties.
 
 (join.jpg)
 
 
 ```{r data, message=FALSE, warning=FALSE, cache=TRUE}
 ## READ IN DATA
-
 fire_suppression_facilities <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_suppression_facilities.shp")
 
 fishnet_unclipped <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/Fishnet with Joined Data/fishnet_halfmile_joins.shp") %>%
@@ -232,12 +230,12 @@ fishnet_clipped <- fishnet_clipped %>% dplyr::select(WUI_MAJORI,FVEG_MAJOR,ELEVA
           FVEG_MAJ=FVEG_MAJOR,
           ELEVATION_AV=ELEVATION_)
 
-# Adding Unique IDs for each cell
+# Adding Unique IDs for each cell, these were lost when exporting from ArcMap
 fishnet_clipped$ID <-  seq.int(nrow(fishnet_clipped))
 ```
 
 
-```{r fire_data, message=FALSE, warning=FALSE}
+```{r fire_data, message=FALSE, warning=FALSE, cache=TRUE}
 ## Joining fire data to fishnets 
 ###2014-18
 fire_perimeter1418 <-
@@ -281,7 +279,7 @@ fishnet_clipped$Fire19 <- ifelse(is.na(fishnet_clipped$Fire19),0, fishnet_clippe
 ## Weather Data Processing
 Using the riem package in R, we identified weather stations that were in and around our selected counties. We then associated each of these stations with our fishnet using the nearest neighbor function and retrieved weather data from each station for fire season months (July to October) for our years of interest.
 
-```{r weather_data, message=FALSE, warning=FALSE}
+```{r weather_data, message=FALSE, warning=FALSE, cache=TRUE}
 ## WEATHER DATA
 
 # vector 1 - of southern california station ids
@@ -307,9 +305,9 @@ closest_weather_station_to_fishnet <- nn2(weather_coords, fishnet_coords, k = 1)
 
 fishnet_clipped$weather_ID <- closest_weather_station_to_fishnet
 
-ggplot()+
-  geom_sf(data = selected_counties)+
-  geom_sf(data = weather_coords)
+#ggplot()+
+ # geom_sf(data = selected_counties)+
+  #geom_sf(data = weather_coords)
 
 # function and loop -- tried it with the vector of ids and the df of all info, but neither worked. This version below uses just the vector of station ids
 get_weather_features_by_station <- function(weather_station_ids, start_year, end_year){
@@ -522,7 +520,7 @@ fishnet_clipped <- fishnet_clipped %>% mutate(CoverCat = case_when(fishnet_clipp
 
 
 fishnet_clipped <- fishnet_clipped %>% mutate(SlopeCat = case_when(fishnet_clipped$SLOPE_MEAN < 5 ~ "low",
-                                                                   fishnet_clipped$SLOPE_MEAN >=5|fishnet_clipped$SLOPE_MEAN <15 ~ "medium",
+                                                                   fishnet_clipped$SLOPE_MEAN >=5 & fishnet_clipped$SLOPE_MEAN <15 ~ "medium",
                                                                    fishnet_clipped$SLOPE_MEAN >=15 ~ "high" ))
 
 ## Replacing Land Cover type 15 (perm snow and ice) with type 17 (waterbodies)
@@ -559,9 +557,7 @@ fishnet_clipped <- fishnet_clipped %>%
 
 ```
 
-
 ## Exploratory Analysis
-
 The bar plots below visualize the continuous variables that were considered for the logistic model. The y-axis shows the mean value of each variable for grid cells that did have fires in 2014-2018 and those that did not have fires. Variables that show significant differences between grid cells that do and do not have fire are likely be useful for the model.
 
 The bar plots illustrate the following:
@@ -571,8 +567,6 @@ The bar plots illustrate the following:
 + The mean distance to the wildlife urban interface is smaller for cells that had fires
 + There is not a noticeable difference in mean humidity, maximum temperature, preciptation, or wind speed for cells that had fires. However, several of these features did end up improving the model.
 + There is not a noticeable difference in distance to 3 nearest fire suppression facilities for cells that had fires versus cells that did not.
-
-NEED TO VISUALIZE CATEGORICAL VARS
 
 ```{r exploratory, message=FALSE, warning=FALSE}
 # DATA VISUALIZATIONS
@@ -614,18 +608,12 @@ ggcorrplot(
   labs(title = "Correlation across Characteristics") 
 ```
 
-ADD NARRATIVE HERE
-
-```{r exploratory_maps, message=FALSE, warning=FALSE}
-Fire1418DF <- fishnet_clipped %>% dplyr::select(Fire1418, geometry)
-
-ggplot() +
-   geom_sf(data=Fire1418DF, aes(fill="transparent", color="black")) +
-  geom_sf(data=fishnet_clipped, aes(fill=WUI_MAJ), color=NA) +
-   scale_fill_discrete(name="WUI Type", labels=c("Missing Data","Not WUI","Influence Zone","Intermix","Interface")) +
-  labs(title="Wildlife Urban Interface and Fire") +
-  mapTheme()
-
+The maps below visualize categorical variables and fire in the 13 counties under analysis. The maps suggest the following:
++ Most fires seem to occur outside of the wildlife urban interface.
++ Fires seem especially prevelant in areas dominated by conifer vegetation 
++ Fires seem especially prevelatn in savannas
+ 
+```{r exploratory_maps, message=FALSE, warning=FALSE, cache=TRUE}
 Fire1418DF <- st_intersection(st_make_valid(fire_perimeter1418),st_make_valid(selected_counties))
 
 palette5 <- c("#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c")
@@ -646,7 +634,8 @@ ggplot() +
 
   scale_fill_manual(values = palette5, name="WUI Type", labels=c("Missing Data","Not WUI","Influence Zone","Intermix","Interface")) +
 
-  labs(title="Wildlife Urban Interface and Fire") +
+  labs(title="Wildlife Urban Interface and Fire",
+       subtitle = "Red outline denotes fire perimeters 2014-2018") +
 
   mapTheme()
 
@@ -660,15 +649,34 @@ ggplot() +
 
   scale_fill_manual(values = palette9, name="WUI Type", labels=c("Missing Data","Conifer","Shrub","Herbaceous","Barren", "Urban", "Hardwood", "Water",      "Agriculture")) +
 
-  labs(title="Vegetation COver and Fire") +
+  labs(title="Vegetation COver and Fire",
+       subtitle = "Red outline denotes fire perimeters 2014-2018") +
 
   mapTheme()
+
+ 
+
+ggplot() +
+
+  geom_sf(data = fishnet_clipped, aes(fill = COVER_MAJ), color = "transparent")+
+
+  geom_sf(data = Fire1418DF, fill = "transparent", color = "red", size = 0.5)+
+
+  scale_fill_manual(values = palatte_nlcd, name="WUI Type", labels=c("Evergreen Needleleaf", "Evergreen Broadleaf", "Deciduous Needleleaf", "Deciduous Broadleaf", "Mixed Forests", "Closed Shrublands", "Open Shrubland", "Woody Savannas", "Savannas", "Grassland", "Permanent Wetland", "Cropland", "Urban and Built-up Lands", "Cropland/Natural Vegetation Mosaics", "Permanent Snow and Ice", "Water Bodies")) +
+
+  labs(title="National Land Cover Data and Fire",
+       subtitle = "Red outline denotes fire perimeters 2014-2018") +
+
+  mapTheme()
+ 
+
+
   
 
 ```
 
 ## Describe the Spatial Process/ Space Time Process
-NOT SURE WHAT TO PUT HERE
+NOT SURE WHAT TO PUT HERE. Did we already cover this above?
 
 # Model
 Rare events are difficult to model, and attempts to do so often lead to underprediction. In our first attempts at building a logistic regression, we developed models with very high accuracy rates. However, these models predicted almost no fires. We initially trained our model on 2016-2018 fire perimeter data, but decided to include 2014 and 2015 data to combat the rare event problem. We also added 3 counties to the original 10 counties that we analyzed to increase the occurance of fire in our dataset.
@@ -1031,12 +1039,15 @@ ggplot() +
 ```
 
 # Discussion
--critique strengths and weaknesses of model
-- Overpredicting fire
-- Weather idea generalized over several months and years, climate change, model needs to be updated for climate change
-- difficulty predicting future bc a rare event
-- accuracy went down as sensitivty went up, model predicting almost 0 fires had best accuracy
-- giving risk score not binary outcome, risk always exists, we are trying to quantify amount of risk
+Given the difficulty of predicting for rare events, and the notorious difficulty of forecasting wildfire behavior in particular, we are pleased with the performance of our model (Massey, 2013). Our cross validation indicates that the model is generalizable to new data and across the 13 counties. At a .2 threshold, which we feel is reasonable given the costs and benefits of overpredicting versus underpredicting fire, the model has high sensitivity and specificity.
+
+While the model can predict fire over the course of several years with reasonable accuracy, it does not perform as well when predicting on a single year, as we saw when predicting for 2019 fires. This is likely because fire is a relatively rare event over the course of a single year, even though wildfires have become an increasing threat in California over recent years.
+
+In building our model, we predicted fires in previous years based on historical weather data from the corresponding years. In order to predict future fire risk, we will need to incorporate accurate weather predictions into the model (Baraniuk, 2018). The model will need to be updated as climate change continues to impact weather patterns and wildfire occurances.
+
+Rather than predicting whether or not fire will occur in a given grid cell, Spark Safe provides users with a risk score of Low, Medium, or High. This helps to address the issue of false negatives in our model, as homes with predicted fire probabilities below the .2 threshold but above 0 will be categorized under Medium Risk.
+
+As we continue to refine the Spark Safe model, we hope to increase the sensitivity of the model while keeping the false negative rate reasonably low.
 
 # Conclusion
 NEED TO FIGURE OUT HOW TO ADD GEOMETRY BACK
@@ -1056,6 +1067,9 @@ ggplot() +
 
 ```
 **Sources**:
+Baraniuk, C. (2018, October 7). The quest to predict - and stop - the spread of wildfires. *BBC*. https://www.bbc.com/future/article/20180924-the-quest-to-predict-and-stop-the-spread-of-wildfires
+
+Massey, N. (2013, November 15). Finally, a Way to Predict a Wildfire's Behavior in Real Time. *Scientific American*. https://www.scientificamerican.com/article/finally-a-way-to-predict-a-wildfires-behavior-in-real-time/
 
 Miller, R., Mach, K., & Field, C. (2020, October 29). Climate Change is Central to California's Wildfires. *Scientific American*. https://www.scientificamerican.com/article/climate-change-is-central-to-californias-wildfires/#:~:text=More%20than%20half%20of%20the,than%20doubled%20since%20the%201980s.&text=For%20wildfires%2C%20fuel%20treatments%20like,have%20become%20a%20salient%20example 
 
