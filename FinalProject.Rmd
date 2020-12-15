@@ -9,9 +9,7 @@ output:
     code_folding: hide
 ---
 # Introduction
-- explain the problem
-- visualize California fires
--loading libraries, themes, color palettes, and functions that we will use in our analysis
+California has more wildfires than any other U.S. state.In 2020, California saw one of the worst wildfire seasons in recorded history, and climate change could lead to even more wildfire destruction in the future (Yan et al., 2020; Miller et al., 2020).
 
 ```{r setup, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -122,7 +120,10 @@ nn_function <- function(measureFrom,measureTo,k) {
   
   return(output)  
 }
+```
 
+
+```{r setup2, message=FALSE, warning=FALSE}
 # READ IN DATA
 all_counties <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/counties.shp") %>%
   st_transform('EPSG:2225')
@@ -147,7 +148,28 @@ ggplot() +
   labs(title="California Wildfires",
        subtitle="Years 2010-2019")+
   mapTheme()
+```
 
+In california, homeowners in areas with high wildfire risk are required to take certain preventative measures, including clearing flammable vegetation around their home and keeping their roof clear of leaves (Public Resources Code, n.d.). Cal Fire, the state fireighting agency, is responsible for inspecting many of the state's properties for compliance with these regulations and for educating homeowners on what they should be doing to mitigate their risk.  However, due to limited funding, Cal Fire is not able to complete their inspections. In 2018, Cal Fire inspected only 17% of the properties within their jursidiction. In Northern California, which includes some of the highest risk fire areas in the state, the inspection rates are even lower (Sommer, 2019).
+
+To support Cal Fire in their important work protecting California from fire, we have developed a mobile application called Spark Safe. Using the Spark Safe app, homeowners in 13 Northern California counties can enter their address and immediately learn their wildfire risk score. Those in high risk areas are prompted to submit an inspection through the app by taking photographs with their smart phones and completing a basic form. All users will also have access to educational content about wildfire prevention and safety through the app. Spark Safe will enable Cal Fire to dramatically expand their reach and will help to improve wildfire prevention compliance throughout the 13 counties. The following counties were included in the app due to having both high wildfire risk and low Cal Fire inspection rates:
+
++ Colusa
++ Del Norte
++ Glenn
++ Humboldt
++ Lake
++ Mendocino
++ Napa
++ Shasta
++ Siskiyou
++ Sonoma
++ Tehama
++ Trinity
++ Yolo
+
+
+```{r maps2, message=FALSE, warning=FALSE}
 ## Showing our selected counties
 ggplot() +
   geom_sf(data = fire_perimeter1019, fill="orange", color="transparent")+
@@ -158,20 +180,42 @@ ggplot() +
   mapTheme()
 ```
 
--explain our use case
+Spark Safe's wildfire risk score is based on the probability of a wildfire occuring as predicted by a logistic regression. This document outlines how Spark Safe's data scientists developed that logistic regression. In sharing this, we hope to inspire other agencies to open the "black box" of algorithmic governance and to increase transparency in the algorithms used to inform public policy decisions.
 
 # Data
--describe the data used:
-- fire perimeter
-- WUI
-- FVEG
-- Elevation
-- Slope
-- Land Cover
-- County
-- Weather (temp, precip, humidity, wind speed)
-- describe process in ArcMap
-- explain fishnet size
+
+The following datasets were used to develop the logistic model. All data is from publically available sources.
+
++ Fire perimeters in California dating from 1878 - 2019. These records are complete from 2002 to present.  
++ Aspects of the wildlife urban interface (WUI) - interface, intermix, influence zone, and not WUI
++ Vegetation types
++ Elevation
++ Land Cover
++ County
++ Weather (temp, precip, humidity, wind speed)
+
+## ArcMap Processing
+
+Many of the datasets were in raster form. Because R does not support raster well, we did our initial data wrangling in ArcMap. First, we created a .5 x.5 mile fishnet for the entire state. WHY DID WE CHOOSE THIS SIZE?
+
+(create_fishnet3.jpg)
+
+Next, files were reclassified if necesssary to ensure that the appropriate values would be used by the zonal statistics as a table tool. 
+
+(reclassify.jpg)
+
+We then calculated slope from the elevation data using the slope spatial analyst tool.
+
+(slope.jpg)
+
+Using the zonal statistics as at table tool, we determined the majority value for each dataset represented in each fishnet gridcell. For slope and elevation, the mean was calculated rather than the majority.
+
+(zonal.jpg)
+
+We then joined each table to our fishnet based on the unique ID number of each fishnet grid cell. The final fishnet was exported as a shapefile and read into R.
+
+(join.jpg)
+
 
 ```{r data, message=FALSE, warning=FALSE, cache=TRUE}
 ## READ IN DATA
@@ -234,6 +278,8 @@ fishnet_clipped <-
 fishnet_clipped$Fire19 <- ifelse(is.na(fishnet_clipped$Fire19),0, fishnet_clipped$Fire19)
 ```
 
+## Weather Data Processing
+Using the riem package in R, we identified weather stations that were in and around our selected counties. We then associated each of these stations with our fishnet using the nearest neighbor function and retrieved weather data from each station for fire season months (July to October) for our years of interest.
 
 ```{r weather_data, message=FALSE, warning=FALSE}
 ## WEATHER DATA
@@ -372,7 +418,18 @@ weather_2019 <- left_join(weather_data2019, asos_socal_stations, on = 'weather_s
 fishnet_clipped <- left_join(fishnet_clipped, weather_2019, on = "weather_ID")
 ```
 
-- describe feature engineering
+## Feature Engineering
+
+After wrangling all of our data, we engineered the following new features to test in our model:
++ A binary variable indicating whether or not a fire occured in each grid cell from 2010-2013
++ A continuous variable of the number of historical fires in each grid cell
++ Categorical variables for land cover type and slope
++ A binary variable indicating whether the mean elevation is greater than 3000 feet.
++ Continuous variables representing the distance to the nearest grid cells primarily composed of conifer, shrub, and hardwood respectively
++ A continuous variable representing distance to the wildlife urban interface
++ A continuous variable
++ A continuous variable representing the distance to the nearest 3 fire suppression facilities
++ A continuous variable representing the distance to the nearest 10 grid cells with fires in 2010-2013
 
 ```{r features, message=FALSE, warning=FALSE}
 # FEATURE ENGINEERING
@@ -498,20 +555,24 @@ fishnet_clipped <- fishnet_clipped %>%
     WUI.nn=
       nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(wui_points),1),
     Fire.nn=
-      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire1013_points),5))
+      nn_function(st_coordinates(st_centroid(fishnet_clipped)), st_coordinates(fire1013_points),10))
 
 ```
 
 
 ## Exploratory Analysis
-- bar plots
-The bar plots below visualize the continuous variables that were considered for the logistic model. The y-axis shows the mean value of each variable for eligible homeowners that do take the credit and those that do not take the credit. Variables that show significant differences between homeowners that do and do not take the credit will likely be useful for the model.
+
+The bar plots below visualize the continuous variables that were considered for the logistic model. The y-axis shows the mean value of each variable for grid cells that did have fires in 2014-2018 and those that did not have fires. Variables that show significant differences between grid cells that do and do not have fire are likely be useful for the model.
 
 The bar plots illustrate the following:
-- The mean number of.... 
++ The mean distance to conifer, hardwood, and shrub is smaller for cells that had fires
++ The mean elevation and mean slope is higher for cells that had fires
++ The mean number of historical fires is higher for cells that had fires
++ The mean distance to the wildlife urban interface is smaller for cells that had fires
++ There is not a noticeable difference in mean humidity, maximum temperature, preciptation, or wind speed for cells that had fires. However, several of these features did end up improving the model.
++ There is not a noticeable difference in distance to 3 nearest fire suppression facilities for cells that had fires versus cells that did not.
 
-- correlation matrix
-- maybe some maps of categorical variables?
+NEED TO VISUALIZE CATEGORICAL VARS
 
 ```{r exploratory, message=FALSE, warning=FALSE}
 # DATA VISUALIZATIONS
@@ -535,6 +596,7 @@ fishnet_clipped %>% st_drop_geometry() %>%
   theme(legend.position = "none")
 ```
 
+Colinearity can undermine the interpretability of a model. To help us avoid colinearity, we visualized correlations among our continuous variables. Unsurprisingly, mean temperature and mean maximum temperature are highly positively correlated. The correlation matrix also shows that temperature is negatively correlated with humidity.
 
 ```{r colinear, message=FALSE, warning=FALSE}
 # Identifying Colinearity 
@@ -552,6 +614,7 @@ ggcorrplot(
   labs(title = "Correlation across Characteristics") 
 ```
 
+NEED HELP WITH MAPS OF CATEGORICAL VARS HERE
 
 ```{r exploratory_maps, message=FALSE, warning=FALSE}
 Fire1418DF <- fishnet_clipped %>% dplyr::select(Fire1418, geometry)
@@ -567,24 +630,28 @@ ggplot() +
 ```
 
 ## Describe the Spatial Process/ Space Time Process
+NOT SURE WHAT TO PUT HERE
 
 # Model
-- explain rare event problem
-- list features in model: 
-- FVEG_MAJ (vegetation type that makes up the majority of the grid cell)
-- ELEVATION_AV (average elevation in the grid cell)
-- SLOPE_MEAN (average slope in the grid cell)
-- COVER_MAJ (majority land cover type in grid cell)
-- COUNTY_ NAME 
-- MeanTemp1418 (mean temperature during the fire season from 2014-2018)
-- MeanHumidity1418 (mean humidity during the fire season from 2014-2018)
-- MeanWindSpeed1418 (mean wind speed during the fire season from 2014-2018)
-- n_fires_intersections (number of fires occurring in that grid cell)
-- Conifer.nn (distance to nearest grid cell that is majority conifer)
-- Hardwood.nn (distance to nearest grid cell that is majority hardwood)
-- Facilities.nn (distance to 5 nearest fire suppression facilities)
+Rare events are difficult to model, and attempts to do so often lead to underprediction. In our first attempts at building a logistic regression, we developed models with very high accuracy rates. However, these models predicted almost no fires. We initially trained our model on 2016-2018 fire perimeter data, but decided to include 2014 and 2015 data to combat the rare event problem. We also added 3 counties to the original 10 counties that we analyzed to increase the occurance of fire in our dataset.
 
-- discuss statistical significance of variables
+In choosing a final model, we aimed for statistically significant independent variables, a relatively high McFadden pseudo R squared, and a large area under the receiver operating curve. We also evaluated confusion metrics. Given our use case, we felt that increasing the number of true positives was more important than maximizing true negatives or minimizing false positives. Therefore, we intentionally created a model that overpredicts for wildfire.
+
+The final model includes the following features:
++ FVEG_MAJ (vegetation type that makes up the majority of the grid cell)
++ ELEVATION_AV (average elevation in the grid cell)
++ SLOPE_MEAN (average slope in the grid cell)
++ COVER_MAJ (majority land cover type in grid cell)
++ COUNTY_ NAME 
++ MeanTemp1418 (mean temperature during the fire season from 2014-2018)
++ MeanHumidity1418 (mean humidity during the fire season from 2014-2018)
++ MeanWindSpeed1418 (mean wind speed during the fire season from 2014-2018)
++ n_fires_intersections (number of fires occurring in that grid cell)
++ Conifer.nn (distance to nearest grid cell that is majority conifer)
++ Hardwood.nn (distance to nearest grid cell that is majority hardwood)
++ Facilities.nn (distance to 5 nearest fire suppression facilities)
+
+The output below demonstrates that these features are highly statistically significant.
 
 ```{r model, message=FALSE, warning=FALSE}
 # LOGISTIC MODEL
@@ -922,4 +989,12 @@ ggplot() +
   mapTheme()
 
 ```
+**Sources**:
 
+Miller, R., Mach, K., & Field, C. (2020, October 29). Climate Change is Central to California's Wildfires. *Scientific American*. https://www.scientificamerican.com/article/climate-change-is-central-to-californias-wildfires/#:~:text=More%20than%20half%20of%20the,than%20doubled%20since%20the%201980s.&text=For%20wildfires%2C%20fuel%20treatments%20like,have%20become%20a%20salient%20example 
+
+Public Resources Code. https://svfra.org/home/svfra/pdf/PRC%20429114%20and%20CA%20ADC%201299.pdf
+
+Sommer, L. (2019, June 10). Who's Checking Your Neighborhood for Flammable Brush? Maybe No One. *KQED*. https://www.kqed.org/science/1943058/whos-checking-homes-for-flammable-brush-in-some-high-risk-areas-maybe-no-one
+
+Yan, H., Mossburg, C., Moshtaghian, A., & Vercammen, P. (2020, September 6). California sets new record for land torched by wildfires as 224 people escape by air from a 'hellish' inferno. *CNN*. https://www.cnn.com/2020/09/05/us/california-mammoth-pool-reservoir-camp-fire/index.html 
