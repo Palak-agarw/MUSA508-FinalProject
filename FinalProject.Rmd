@@ -9,7 +9,7 @@ output:
     code_folding: hide
 ---
 # Introduction
-California has more wildfires than any other U.S. state.In 2020, California saw one of the worst wildfire seasons in recorded history, and climate change could lead to even more wildfire destruction in the future (Yan et al., 2020; Miller et al., 2020).
+California has more wildfires than any other U.S. state. In 2020, California saw one of the worst wildfire seasons in recorded history, and climate change could lead to even more wildfire destruction in the future (Yan et al., 2020; Miller et al., 2020).
 
 ```{r setup, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -614,7 +614,7 @@ ggcorrplot(
   labs(title = "Correlation across Characteristics") 
 ```
 
-NEED HELP WITH MAPS OF CATEGORICAL VARS HERE
+ADD NARRATIVE HERE
 
 ```{r exploratory_maps, message=FALSE, warning=FALSE}
 Fire1418DF <- fishnet_clipped %>% dplyr::select(Fire1418, geometry)
@@ -624,6 +624,44 @@ ggplot() +
   geom_sf(data=fishnet_clipped, aes(fill=WUI_MAJ), color=NA) +
    scale_fill_discrete(name="WUI Type", labels=c("Missing Data","Not WUI","Influence Zone","Intermix","Interface")) +
   labs(title="Wildlife Urban Interface and Fire") +
+  mapTheme()
+
+Fire1418DF <- st_intersection(st_make_valid(fire_perimeter1418),st_make_valid(selected_counties))
+
+palette5 <- c("#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c")
+
+palette9 <- c("#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#006d2c", "#00441b")
+
+palatte_nlcd <- c("#aec3d4", "#33510d", "#e2720f", "#369b47", "#30eb5b", "#387242", "#ff6100", "#c3aa69", "#b76031", "#d9903d",
+
+                  "#a9c952", "#111149", "#cdb33b", "#c40f5a", "#33280d", "#2784A7")
+
+ 
+
+ggplot() +
+
+  geom_sf(data = fishnet_clipped, aes(fill = WUI_MAJ), color = "transparent")+
+
+  geom_sf(data = Fire1418DF, fill = "transparent", color = "red", size = 0.5)+
+
+  scale_fill_manual(values = palette5, name="WUI Type", labels=c("Missing Data","Not WUI","Influence Zone","Intermix","Interface")) +
+
+  labs(title="Wildlife Urban Interface and Fire") +
+
+  mapTheme()
+
+ 
+
+ggplot() +
+
+  geom_sf(data = fishnet_clipped, aes(fill = FVEG_MAJ), color = "transparent")+
+
+  geom_sf(data = Fire1418DF, fill = "transparent", color = "red", size = 0.5)+
+
+  scale_fill_manual(values = palette9, name="WUI Type", labels=c("Missing Data","Conifer","Shrub","Herbaceous","Barren", "Urban", "Hardwood", "Water",      "Agriculture")) +
+
+  labs(title="Vegetation COver and Fire") +
+
   mapTheme()
   
 
@@ -683,20 +721,38 @@ exp(x)
 
 
 ## Goodness of Fit
--McFadden: Higher McFadden pseudo r squared indicates better accuracy.Compared McFadden for different models to help choose
--Density of probabilities plot: Shows distribution of predicted probabilities for fire and no fire. Fire probabilities do not cluster around 1 because this is a rare event, very few grid cells have a high probability of wildfire. This is also shown in the histograms
--selecting a threshold: given the distribution ofpredicted probabilities for grid cells that have fires, the default threshold of .5 does not make sense. For our use case, we would prefer to over predict fires than to underpredict. 
--Confusion Matrix Finally, a confusion matrix for each model shows the number of true positives, true negatives, false positives, and false negatives for the model. A true positive here indicates that at a X% threshold, the model correctly predicted that a wildfire would occur in a given .5 x .5 mile grid cell. A true negative means that our model correctly predicted that a wildfire would not occur. False positive means the model predicted fire, but no fire occured. False negative indicates that the model predicted no fire, but there was fire. The confusion matrix output also shows the sensitivity, or true positive rate, and specificity, or true negative rate, for the model.
+### Pseudo R Squared
+The McFadden pseudo r squared for this model is about .39. While this number is not particularly meaningful on its in, the McFadden pseudo r squared results for different iterations of the model were compared. A higher McFadden pseudo r squared indicates better accuracy. 
 
--ROC Curve: Thus far, we have used a threshold of 50% probability to determine whether a homeowner is predicted to take the credit. However, we may want to change that probability threshold. The receiver operating characteristic (ROC) curve visualizes trade-offs for different thresholds for the feature engineered model. As true positives in the model increase, the number of false positives also increase. That means that although HCD may help more people increase the value of their homes, they will waste more money marketing to people who will not end up taking the credit.
-
-An area under the curve (AUC) of .5 would be a coin toss, meaning the true positive rate and false positive rate are equal. An AUC of 100% would be a perfect fit with 100% true negatives and 0 false positives. Here, we have an AUC between .5 and 1, which indicates that the model has a decent goodness of fit.
--discuss accuracy
-
-```{r fit, message=FALSE, warning=FALSE}
+```{r mcfadden, message=FALSE, warning=FALSE}
 ## Fit metrics
 pR2(fireModel)
+```
 
+### ROC Curve
+The logistic model predicts the probability of fire occuring in a given .25 square mile grid cell from 0 to 1. To validate our model, we chose a probability threshold above which fire is predicted to occur. 
+
+The receiver operating characteristic (ROC) curve visualizes trade-offs for different thresholds for the feature engineered model. As true positives in the model increase, the number of false positives also increase. For the Spark Safe app, we are more interested in increasing the true positive rate than in decreasing the false positive rate. However, if the false positive rate is too high, homeowners may not take the app's predictions seriously. This could lead to a decrease in compliance with wildfire prevention measures in high fire risk areas.
+
+An area under the curve (AUC) of .5 would be a coin toss, meaning the true positive rate and false positive rate are equal. An AUC of 100% would be a perfect fit with 100% true negatives and 0 false positives. Here, we have an AUC of about .92, which indicates that the model has a high goodness of fit.
+
+```{r roc, message=FALSE, warning=FALSE}
+# ROC Curve
+## This us a goodness of fit measure, 1 would be a perfect fit, .5 is a coin toss
+auc(testProbs$Outcome, testProbs$Probs)
+
+ggplot(testProbs, aes(d = as.numeric(testProbs$Outcome), m = Probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = "#FE9900") +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - Model with Feature Engineering")
+```
+### Distribution of Predicted Probabilities
+The plots below show the distribution of predicted probabilities for fire and no fire. The predicted probabilities for no fire cluster around 0. However, the predicted probabilities for areas that do have fire do not cluster around 1. This is because wildfire is a relatively rare event, so very few grid cells have a high probability of wildfire. Although we used 5 years of fire data, only 16% of our fishnet grid cells had wildfires during the time period under analysis. 
+
+given the distribution ofpredicted probabilities for grid cells that have fires, the default threshold of .5 does not make sense. For our use case, we would prefer to over predict fires than to underpredict. 
+
+```{r fit, message=FALSE, warning=FALSE}
 ## Prediction
 testProbs <- data.frame(Outcome = as.factor(fireTest$Fire1418),
                         Probs = predict(fireModel, fireTest, type= "response"))
@@ -726,26 +782,30 @@ hist(testProbsNoFire$Probs,
      col="#FCE77D",
        main="Predicted Probabilities for Grid Cells with No Fire",
      xlab="Probability")
+```
 
+###Confusion Matrix 
+Finally, we generated a confusion matrix for each iteration of our model.The confusion matrix tells us the number of true positives, true negatives, false positives, and false negatives for the model. A true positive here indicates that at a given threshold, the model correctly predicted that a wildfire would occur in a given .5 x .5 mile grid cell. A true negative means that our model correctly predicted that a wildfire would not occur. False positive means the model predicted fire, but no fire occured. False negative indicates that the model predicted no fire, but there was fire. The confusion matrix output also shows the sensitivity, or true positive rate, and specificity, or true negative rate, for the model.
+
+Given the distribution of predicted probabilities and our desire to overpredict rather than underpredict wildfire, we used a threshold of just .2 when comparing models.The final model has a sensitivity of about 80%.
+
+```{r matrix, message=FALSE, warning=FALSE}
 ## Confusion matrix
-### Might want to change this threshold, here a probability >50% if being predicted as takes credit
 testProbs <- 
   testProbs %>%
   mutate(predOutcome  = as.factor(ifelse(testProbs$Probs > 0.2 , 1, 0)))
 
 caret::confusionMatrix(testProbs$predOutcome, testProbs$Outcome, 
                        positive = "1")
-
-# ROC Curve
-## This us a goodness of fit measure, 1 would be a perfect fit, .5 is a coin toss
-auc(testProbs$Outcome, testProbs$Probs)
-
-ggplot(testProbs, aes(d = as.numeric(testProbs$Outcome), m = Probs)) +
-  geom_roc(n.cuts = 50, labels = FALSE, colour = "#FE9900") +
-  style_roc(theme = theme_grey) +
-  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
-  labs(title = "ROC Curve - Model with Feature Engineering")
 ```
+
+#Validating the Model 
+##Choosing a Threshold
+A cost benefit analysis is often used to determine the appropriate threshold for a logistic regression. In this case, a monetary cost benefit analysis does not make sense, given that the cost of adhering to fire prevention regulations is significantly lower than the cost of rebuilding a home. There are no monetary gains for homeowners in our use case, only monetary losses of different degrees.
+
+To choose a threshold, we replaced the 2014-2018 weather data with 2019 weather data in our model and generated probability predictions. We then visualized the distribution of predicted probabilities for cells with and without fire in 2019 and calculated the mean predicted probability for both cases. The mean predicted probability for cells with no fire is 0.006. The mean predicted probability for cells with fire is .248. This led us to choose a threshold of .2.
+
+The confusion matrix below shows that our sensitivity is poor when predicting on 2019 data. This may be because our model is overfit on the training dataset and not generalizable to future years. The generalizability of the model will need to be improved before the Spark Safe app is ready for public use.
 
 ```{r 2019, message=FALSE, warning=FA:SE}
 fireModel19 <- glm(Fire19 ~ .,
@@ -774,16 +834,18 @@ mean(testProbs19nofire$Probs)
 #0.2477918
 mean(testProbs19fire$Probs)
 
-## Confusion Matrix for 2019 at .25 threshold
+## Confusion Matrix for 2019 at .20 threshold
 testProbs19 <- 
   testProbs19 %>%
-  mutate(predOutcome  = as.factor(ifelse(testProbs19$Probs > 0.25 , 1, 0)))
+  mutate(predOutcome  = as.factor(ifelse(testProbs19$Probs > 0.20 , 1, 0)))
 
-caret::confusionMatrix(testProbs19$predOutcome, testProbs$Outcome, 
+caret::confusionMatrix(testProbs19$predOutcome, testProbs19$Outcome, 
                        positive = "1")
 ```
 
-## Selecting a Threshold
+The graph below visualizes confusion metrics for every possible threshold from 0 to 1. At .2, the true positive rate is high and the false negative rate is relatively low. A lower threshold would increase the true positive rate and decrease the false negative rate, but the false positive rate would also increase. This could lead to distrust in the application's predictions, which may reduce compliance. Therefore, our app will rate houses located in grid cells with .2 predicted probability or above as high risk zones, while houses with predicted probabilities greater than 0 but less than .2 will be deemed medium risk zones.
+
+ADD BLACK LINE HERE AT .2
 ```{r threshold, warning=FALSE, message=FALSE}
 iterateThresholds <- function(data, observedClass, predictedProbs, group) {
 #This function takes as its inputs, a data frame with an observed binomial class (1 or 0); a vector of predicted probabilities; and optionally a group indicator like race. It returns accuracy plus counts and rates of confusion matrix outcomes. It's a bit verbose because of the if (missing(group)). I don't know another way to make an optional parameter.
@@ -860,7 +922,7 @@ ggplot(data=whichThreshold, aes(Threshold,Rate,color=Variable)) +
   geom_point()
   
 whichThreshold %>%
-  ggplot(.,aes(Threshold,Count,colour = Variable)) +
+  ggplot(.,aes(Threshold,Rate,colour = Variable)) +
   geom_point() +
   #scale_colour_manual(values = palette5[c(5, 1:3)]) +    
   labs(title = "Revenue by confusion matrix type and threshold",
@@ -871,9 +933,12 @@ whichThreshold %>%
 ```
 
 ## Cross Validation
-- discuss generalizability
-The first outputs indicate the area under the Receiver Operating Characteristic (ROC) curve, the sensitivity, and the specificity for both models. Again we see that both models have high specificity (true negative rates), but low sensitivity. The second output visualizes these metrics for both models across folds. If the models were generalizable, we would expect all of these plots to be clustered around the mean. 
-```{r cv, message=FALSE, warning=FALSE}
+Although our  model did not predict well on 2019 data, we performed other validation tests to judge the generalizability of our model. First, cross validation with 100 k folds was performed. The graphs below visualize teh area under the ROC curve, sensitivity, and specificity o fthe final model across folds. Each of these plots are clustered around the mean, indicating our model has decent generalizability. However, the generalizability of the model's sensitivity could be improved.
+
+The first outputs indicate the area under the Receiver Operating Characteristic (ROC) curve, the sensitivity, and the specificity for the model. Again we see that both models have high specificity (true negative rates), but low sensitivity. The second output visualizes these metrics for both models across folds. If the models were generalizable, we wouldexpect all of these plots to be clustered around the mean. 
+
+MAKE SURE THIS MATCHES FINAL MODEL
+```{r cv, message=FALSE, warning=FALSE, cache=TRUE}
 # K Fold Model Validation
 ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFunction=twoClassSummary)
 
@@ -883,7 +948,7 @@ cvFit <- train(Fire1418 ~ ., data = fishnet_clipped %>% st_drop_geometry() %>%
                    -MeanMaxTemp,-FIRE, -CoverCat, -ElevationBi,
                    -Fire.nn, -SlopeCat, -MeanPrecip1418, -Max_Temp19, 
                    -Mean_Temp19, -Mean_Precipitation19, 
-                   -Mean_Humidity19, -Mean_Wind_Speed19, -Fire1013)%>%
+                   -Mean_Humidity19, -Mean_Wind_Speed19, -Fire1013, -Shrub.nn)%>%
                  dplyr::mutate(Fire1418=ifelse(Fire1418==1,"Fire","No_Fire")),
                method="glm", family="binomial",
                metric="ROC", trControl = ctrl)
@@ -904,7 +969,7 @@ dplyr::select(cvFit$resample, -Resample) %>%
 ```
 
 ### Spatial Cross Validation
--discuss generalizability
+ADD NARRATIVE HERE
 ```{r spatial_cv, message=FALSE, warning=FALSE}
 # Model Validation
 crossValidate <- function(dataset, id, dependentVariable, indVariables) {
@@ -939,8 +1004,9 @@ crossValidate <- function(dataset, id, dependentVariable, indVariables) {
 
 reg.vars <- c("FVEG_MAJ","ELEVATION_AV","SLOPE_MEAN", "COVER_MAJ","COUNTY_NAME",
               "MeanTemp1418","MeanHumidity1418","MeanWindSpeed1418",
-              "n_fires_intersections","Conifer.nn","Shrub.nn","Hardwood.nn",
+              "n_fires_intersections","Conifer.nn","Hardwood.nn",
               "Facilities.nn","WUI.nn")
+
 
 reg.spatialCV <- crossValidate(
   dataset = fishnet_clipped,
@@ -973,7 +1039,7 @@ ggplot() +
 - giving risk score not binary outcome, risk always exists, we are trying to quantify amount of risk
 
 # Conclusion
-
+NEED TO FIGURE OUT HOW TO ADD GEOMETRY BACK
 ```{r conclusion, warning=FALSE, message=FALSE}
 
 # Map of Risk
