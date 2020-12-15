@@ -1068,7 +1068,7 @@ ggplot() +
 ```
 **Sources**:
 Baraniuk, C. (2018, October 7). The quest to predict - and stop - the spread of wildfires. *BBC*. https://www.bbc.com/future/article/20180924-the-quest-to-predict-and-stop-the-spread-of-wildfires
-
+ 
 Massey, N. (2013, November 15). Finally, a Way to Predict a Wildfire's Behavior in Real Time. *Scientific American*. https://www.scientificamerican.com/article/finally-a-way-to-predict-a-wildfires-behavior-in-real-time/
 
 Miller, R., Mach, K., & Field, C. (2020, October 29). Climate Change is Central to California's Wildfires. *Scientific American*. https://www.scientificamerican.com/article/climate-change-is-central-to-californias-wildfires/#:~:text=More%20than%20half%20of%20the,than%20doubled%20since%20the%201980s.&text=For%20wildfires%2C%20fuel%20treatments%20like,have%20become%20a%20salient%20example 
