@@ -122,8 +122,7 @@ nn_function <- function(measureFrom,measureTo,k) {
 }
 ```
 
-
-```{r setup2, message=FALSE, warning=FALSE}
+```{r setup2, message=FALSE, warning=FALSE, cache=TRUE}
 # READ IN DATA
 all_counties <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/counties.shp") %>%
   st_transform('EPSG:2225')
@@ -647,9 +646,9 @@ ggplot() +
 
   geom_sf(data = Fire1418DF, fill = "transparent", color = "red", size = 0.5)+
 
-  scale_fill_manual(values = palette9, name="WUI Type", labels=c("Missing Data","Conifer","Shrub","Herbaceous","Barren", "Urban", "Hardwood", "Water",      "Agriculture")) +
+  scale_fill_manual(values = palette9, name="Vegetation Type", labels=c("Missing Data","Conifer","Shrub","Herbaceous","Barren", "Urban", "Hardwood", "Water",      "Agriculture")) +
 
-  labs(title="Vegetation COver and Fire",
+  labs(title="Vegetation Cover and Fire",
        subtitle = "Red outline denotes fire perimeters 2014-2018") +
 
   mapTheme()
@@ -657,17 +656,12 @@ ggplot() +
  
 
 ggplot() +
-
-  geom_sf(data = fishnet_clipped, aes(fill = COVER_MAJ), color = "transparent")+
-
-  geom_sf(data = Fire1418DF, fill = "transparent", color = "red", size = 0.5)+
-
-  scale_fill_manual(values = palatte_nlcd, name="WUI Type", labels=c("Evergreen Needleleaf", "Evergreen Broadleaf", "Deciduous Needleleaf", "Deciduous Broadleaf", "Mixed Forests", "Closed Shrublands", "Open Shrubland", "Woody Savannas", "Savannas", "Grassland", "Permanent Wetland", "Cropland", "Urban and Built-up Lands", "Cropland/Natural Vegetation Mosaics", "Permanent Snow and Ice", "Water Bodies")) +
-
-  labs(title="National Land Cover Data and Fire",
-       subtitle = "Red outline denotes fire perimeters 2014-2018") +
-
-  mapTheme()
+geom_sf(data = fishnet_clipped, aes(fill = COVER_MAJ), color = "transparent") +
+geom_sf(data = Fire1418DF, fill = "transparent", color = "red", size = 0.5) +
+scale_fill_manual(values = palatte_nlcd, name="Land Cover Type", labels=c("Evergreen Needleleaf", "Evergreen Broadleaf", "Deciduous Needleleaf", "Deciduous Broadleaf", "Mixed Forests", "Closed Shrublands", "Open Shrubland", "Woody Savannas", "Savannas", "Grassland", "Permanent Wetland", "Cropland", "Urban and Built-up Lands", "Cropland/Natural Vegetation Mosaics", "Permanent Snow and Ice", "Water Bodies")) +
+labs(title="National Land Cover \nData and Fire",
+       subtitle = "Red outline denotes \nfire perimeters \n2014-2018") +
+ mapTheme()
  
 
 
@@ -745,6 +739,11 @@ The receiver operating characteristic (ROC) curve visualizes trade-offs for diff
 An area under the curve (AUC) of .5 would be a coin toss, meaning the true positive rate and false positive rate are equal. An AUC of 100% would be a perfect fit with 100% true negatives and 0 false positives. Here, we have an AUC of about .92, which indicates that the model has a high goodness of fit.
 
 ```{r roc, message=FALSE, warning=FALSE}
+
+## Prediction
+testProbs <- data.frame(Outcome = as.factor(fireTest$Fire1418),
+                        Probs = predict(fireModel, fireTest, type= "response"))
+
 # ROC Curve
 ## This us a goodness of fit measure, 1 would be a perfect fit, .5 is a coin toss
 auc(testProbs$Outcome, testProbs$Probs)
@@ -761,10 +760,6 @@ The plots below show the distribution of predicted probabilities for fire and no
 given the distribution ofpredicted probabilities for grid cells that have fires, the default threshold of .5 does not make sense. For our use case, we would prefer to over predict fires than to underpredict. 
 
 ```{r fit, message=FALSE, warning=FALSE}
-## Prediction
-testProbs <- data.frame(Outcome = as.factor(fireTest$Fire1418),
-                        Probs = predict(fireModel, fireTest, type= "response"))
-
 
 #Here we want more of a hump in the bottom plot around 1 to indicate that the reg is predictive
 ggplot(testProbs, aes(x = Probs, fill = as.factor(Outcome))) + 
@@ -977,8 +972,11 @@ dplyr::select(cvFit$resample, -Resample) %>%
 ```
 
 ### Spatial Cross Validation
-ADD NARRATIVE HERE
-```{r spatial_cv, message=FALSE, warning=FALSE}
+To further test our model's generalizability, we conducted a spatial cross validation. By leaving out one county at a time, we were able to see how well our model predicts across space.
+
+The maps below visualize predicted and actual fires for each of the 13 counties. They show that ADD SOMETHING HERE
+
+```{r spatial_cv, message=FALSE, warning=FALSE, cache=TRUE}
 # Model Validation
 crossValidate <- function(dataset, id, dependentVariable, indVariables) {
   
@@ -1052,17 +1050,27 @@ As we continue to refine the Spark Safe model, we hope to increase the sensitivi
 # Conclusion
 NEED TO FIGURE OUT HOW TO ADD GEOMETRY BACK
 ```{r conclusion, warning=FALSE, message=FALSE}
-
 # Map of Risk
 ## Need to add geometry! 
+testProbs_all <- data.frame(Outcome = as.factor(fishnet_clipped$Fire1418),
+                        Probs = predict(fireModel, fishnet_clipped, type= "response"),
+                        ID= fishnet_clipped$ID)
 
-testProbs_risk <- testProbs %>% mutate(Risk_Cat=
-                                         case_when(Probs <= .09 ~ "Low",
-                                                   Probs>.09 & Probs < .2 ~ "Medium",
+testProbs_all <- testProbs_all %>% mutate(Risk_Cat=
+                                            case_when(Probs <=.03 ~ "Low",
+                                                   Probs > 0.03 & Probs < .2 ~ "Medium",
                                                    Probs >=.2 ~ "High" ))
 
+
+
+fishnet_clipped_probs <- left_join(fishnet_clipped, testProbs_all, on = "ID")
+
+palette3 <- c("#B81D13","#008450","#EFB700")
+
 ggplot() +
-  geom_sf(data=testProbs_risk, aes(fill=Risk_Cat))+
+  geom_sf(data=fishnet_clipped_probs, aes(fill=Risk_Cat), color="transparent")+
+  scale_fill_manual(values=palette3, name="Risk Score") +
+  labs(title="Predicted Risk Scores")+
   mapTheme()
 
 ```
