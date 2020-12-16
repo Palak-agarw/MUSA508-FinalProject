@@ -9,7 +9,7 @@ output:
     code_folding: hide
 ---
 # Introduction
-California has more wildfires than any other U.S. state. In 2020, California saw one of the worst wildfire seasons in recorded history, and climate change could lead to even more wildfire destruction in the future (Yan et al., 2020; Miller et al., 2020).
+California has more wildfires than any other U.S. state. In 2020, California saw one of the worst wildfire seasons in recorded history, and climate change could lead to even more wildfire destruction in the future (Yan et al., 2020; Miller et al., 2020). The map below visualizes fires in California from the past 10 years. The spatial process of fires appears to be somewhat clustered.
 
 ```{r setup, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -122,7 +122,7 @@ nn_function <- function(measureFrom,measureTo,k) {
 }
 ```
 
-```{r setup2, message=FALSE, warning=FALSE, cache=TRUE}
+```{r setup2, message=FALSE, warning=FALSE, cache=TRUE, results=FALSE}
 # READ IN DATA
 all_counties <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/counties.shp") %>%
   st_transform('EPSG:2225')
@@ -149,9 +149,11 @@ ggplot() +
   mapTheme()
 ```
 
-In california, homeowners in areas with high wildfire risk are required to take certain preventative measures, including clearing flammable vegetation around their home and keeping their roof clear of leaves (Public Resources Code, n.d.). Cal Fire, the state fireighting agency, is responsible for inspecting many of the state's properties for compliance with these regulations and for educating homeowners about how to mitigate their fire risk. However, due to limited funding, Cal Fire is not able to complete their inspections. In 2018, Cal Fire inspected only 17% of the properties within their jursidiction. In Northern California, which includes some of the highest risk fire areas in the state, the inspection rates are even lower (Sommer, 2019).
+In California, homeowners in areas with high wildfire risk are required to take certain preventative measures, including clearing flammable vegetation around their home and keeping their roof clear of leaves (Public Resources Code, n.d.). Cal Fire, the state fireighting agency, is responsible for inspecting many properties within the state for compliance with these regulations. However, due to limited funding, Cal Fire is not able to complete their inspections. In 2018, Cal Fire inspected only 17% of the properties within their jursidiction. In Northern California, which includes some of the highest risk fire areas in the state, the inspection rates are even lower (Sommer, 2019).
 
-To support Cal Fire in their important work protecting California from fire, we have developed a mobile application called Spark Safe. Using the Spark Safe app, homeowners in 13 Northern California counties can enter their address and immediately learn their wildfire risk score. Those in high risk areas are prompted to submit an inspection through the app by taking photographs with their smart phones and completing a basic form. All users will also have access to educational content about wildfire prevention and safety through the app. Spark Safe will enable Cal Fire to dramatically expand their reach and help to improve wildfire prevention compliance throughout the 13 counties. The following counties are included in the app due to having both high wildfire risk and low Cal Fire inspection rates:
+To support Cal Fire in their important work protecting California from fire, we have developed a mobile application called SparkSafe. Using the SparkSafe app, homeowners in 13 Northern California counties can enter their address and immediately learn their wildfire risk score. Those in high risk areas are prompted to submit an inspection through the app by taking photographs with their smart phones. All users will also have access to educational content about wildfire prevention and safety through the app. 
+
+SparkSafe will enable Cal Fire to dramatically expand their reach and help to improve wildfire prevention compliance throughout the 13 counties. The following counties are included in the app due to having both high wildfire risk and low Cal Fire inspection rates:
 
 + Colusa
 + Del Norte
@@ -178,44 +180,45 @@ ggplot() +
   mapTheme()
 ```
 
-Spark Safe's wildfire risk score is based on the probability of a wildfire occuring in a given area as predicted by a logistic regression. This document outlines how Spark Safe's data scientists developed that logistic regression. In sharing this, we hope to inspire other agencies to open the "black box" of algorithmic governance and to increase transparency in the algorithms used to inform public policy decisions.
+SparkSafe's wildfire risk score is based on the probability of a wildfire occuring in a given area as predicted by a logistic regression. This document outlines how SparkSafe's data scientists developed that logistic regression. In sharing this, we hope to inspire other agencies to open the "black box" of algorithmic governance and to increase transparency in the algorithms used to inform public policy decisions.
 
-Follow this link to view a short video about the Spark Safe app: INSERT YOUTUBE LINK HERE
+Follow this link to view a short video about the SparkSafe app: https://youtu.be/gXrzPI28f2Q
 
 # Data
-The following datasets were used to develop the logistic model. All data is from publically available sources.
+The following datasets were used to develop the logistic model. All data were obtained from publically available sources.
 
 + Fire perimeters in California dating from 1878 - 2019. These records are complete from 2002 to present.  
 + Aspects of the wildlife urban interface (WUI): interface, intermix, influence zone, and not WUI
 + Vegetation types
 + Elevation
-+ Land Cover
++ Land cover
 + County borders
 + Weather, including temperature, precipitation, humidity, wind speed
 
 ## ArcMap Processing
-Many of the datasets were available in raster form. Because R does not support raster well, we did our initial data wrangling in ArcMap. First, we created a .5 x.5 mile fishnet for the entire state. WHY DID WE CHOOSE THIS SIZE?
+Many of the datasets were available in raster form. Because R does not support raster well, we did our initial data wrangling in ArcMap. First, we created a .5 x.5 mile fishnet for the entire state. We chose this size because .25 square miles is approximately the size of a residential neighborhood (Coulton et al., 2013).
 
-(create_fishnet3.jpg)
+![Creating Fishnet](C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/create_fishnet3.jpg)
+
 
 Next, files were reclassified if necesssary to ensure that the appropriate values would be used by the zonal statistics as a table tool. 
 
-(reclassify.jpg)
+![Reclassifying Data](C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/reclassify.jpg)
 
 We then calculated slope from the elevation data using the slope spatial analyst tool.
 
-(slope.jpg)
+![Calculating Slope](C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/slope.jpg)
 
 Using the zonal statistics as a table tool, we determined the majority value for each dataset represented in each fishnet gridcell. For slope and elevation, the mean was calculated rather than the majority.
 
-(zonal.jpg)
+![Zonal Statistics](C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/zonal.jpg)
 
 We then joined each zonal statistics table to our fishnet based on the unique ID number of the fishnet grid cells. The final fishnet was exported as a shapefile, read into R, and clipped to our 13 selected counties.
 
-(join.jpg)
+![Join](C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/join.jpg)
 
 
-```{r data, message=FALSE, warning=FALSE, cache=TRUE}
+```{r data, message=FALSE, warning=FALSE, cache=TRUE, results=FALSE}
 ## READ IN DATA
 fire_suppression_facilities <- st_read("C:/Users/owner160829a/Desktop/Graduate School/Penn/Courses/Fall 20/MUSA 508/Final Project/Geoprocessing/fire_suppression_facilities.shp")
 
@@ -278,7 +281,7 @@ fishnet_clipped$Fire19 <- ifelse(is.na(fishnet_clipped$Fire19),0, fishnet_clippe
 ## Weather Data Processing
 Using the riem package in R, we identified weather stations that were in and around our selected counties. We then associated each of these stations with our fishnet using the nearest neighbor function and retrieved weather data from each station for fire season months (July to October) for our years of interest.
 
-```{r weather_data, message=FALSE, warning=FALSE, cache=TRUE}
+```{r weather_data, message=FALSE, warning=FALSE, cache=TRUE, results=FALSE}
 ## WEATHER DATA
 
 # vector 1 - of southern california station ids
@@ -418,15 +421,24 @@ fishnet_clipped <- left_join(fishnet_clipped, weather_2019, on = "weather_ID")
 ## Feature Engineering
 
 After wrangling all of our data, we engineered the following new features to test in our model:
+
 + A binary variable indicating whether or not a fire occured in each grid cell from 2010-2013
+
 + A continuous variable of the number of historical fires in each grid cell
+
 + Categorical variables for land cover type and slope
+
 + A binary variable indicating whether the mean elevation is greater than 3000 feet.
+
 + Continuous variables representing the distance to the nearest grid cells primarily composed of conifer, shrub, and hardwood respectively
+
 + A continuous variable representing distance to the wildlife urban interface
-+ A continuous variable
+
 + A continuous variable representing the distance to the nearest 3 fire suppression facilities
+
 + A continuous variable representing the distance to the nearest 10 grid cells with fires in 2010-2013
+
+The distance variables were only calculated with grid cells located within the 13 counties. This may lead to misleading results. For example, the closest wildlife urban interface to a given grid cell could be outside of the 13 counties, perhaps even over the state border. Future versions of the SparkSafe model will include data outside of the selected counties for nearest neighbor calculations.  
 
 ```{r features, message=FALSE, warning=FALSE}
 # FEATURE ENGINEERING
@@ -560,12 +572,21 @@ fishnet_clipped <- fishnet_clipped %>%
 The bar plots below visualize the continuous variables that were considered for the logistic model. The y-axis shows the mean value of each variable for grid cells that did have fires in 2014-2018 and those that did not have fires. Variables that show significant differences between grid cells that do and do not have fire are likely be useful for the model.
 
 The bar plots illustrate the following:
+
 + The mean distance to conifer, hardwood, and shrub is smaller for cells that had fires
+
 + The mean elevation and mean slope is higher for cells that had fires
+
 + The mean number of historical fires is higher for cells that had fires
+
 + The mean distance to the wildlife urban interface is smaller for cells that had fires
+
++ The mean distance to grid cells that had fires in 2010-2013 is smaller for cells that had fires
+
 + There is not a noticeable difference in mean humidity, maximum temperature, preciptation, or wind speed for cells that had fires. However, several of these features did end up improving the model.
+
 + There is not a noticeable difference in distance to 3 nearest fire suppression facilities for cells that had fires versus cells that did not.
+
 
 ```{r exploratory, message=FALSE, warning=FALSE}
 # DATA VISUALIZATIONS
@@ -576,7 +597,7 @@ fishnet_clipped$FIRE <- ifelse(fishnet_clipped$Fire1418==1,"Fire","No_Fire")
 fishnet_clipped %>% st_drop_geometry() %>%
   dplyr::select(FIRE, ELEVATION_AV, SLOPE_MEAN,MeanMaxTemp, MeanTemp1418,MeanHumidity1418,
                 MeanPrecip1418,MeanWindSpeed1418, n_fires_intersections, Conifer.nn, Shrub.nn, Hardwood.nn, 
-                Facilities.nn, WUI.nn) %>%
+                Facilities.nn, WUI.nn, Fire.nn) %>%
   rename("Elevation" = ELEVATION_AV, "Slope" = SLOPE_MEAN) %>%
   gather(Variable, value, -FIRE) %>%
   ggplot(aes(FIRE, value, fill=FIRE)) + 
@@ -608,9 +629,12 @@ ggcorrplot(
 ```
 
 The maps below visualize categorical variables and fire in the 13 counties under analysis. The maps suggest the following:
+
 + Most fires seem to occur outside of the wildlife urban interface.
+
 + Fires seem especially prevelant in areas dominated by conifer vegetation 
-+ Fires seem especially prevelatn in savannas
+
++ Fires seem especially prevelant in savannas
  
 ```{r exploratory_maps, message=FALSE, warning=FALSE, cache=TRUE}
 Fire1418DF <- st_intersection(st_make_valid(fire_perimeter1418),st_make_valid(selected_counties))
@@ -669,26 +693,35 @@ labs(title="National Land Cover \nData and Fire",
 
 ```
 
-## Describe the Spatial Process/ Space Time Process
-NOT SURE WHAT TO PUT HERE. Did we already cover this above?
-
 # Model
 Rare events are difficult to model, and attempts to do so often lead to underprediction. In our first attempts at building a logistic regression, we developed models with very high accuracy rates. However, these models predicted almost no fires. We initially trained our model on 2016-2018 fire perimeter data, but decided to include 2014 and 2015 data to combat the rare event problem. We also added 3 counties to the original 10 counties that we analyzed to increase the occurance of fire in our dataset.
 
 In choosing a final model, we aimed for statistically significant independent variables, a relatively high McFadden pseudo R squared, and a large area under the receiver operating curve. We also evaluated confusion metrics. Given our use case, we felt that increasing the number of true positives was more important than maximizing true negatives or minimizing false positives. Therefore, we intentionally created a model that overpredicts for wildfire.
 
 The final model includes the following features:
+
 + FVEG_MAJ (vegetation type that makes up the majority of the grid cell)
+
 + ELEVATION_AV (average elevation in the grid cell)
+
 + SLOPE_MEAN (average slope in the grid cell)
+
 + COVER_MAJ (majority land cover type in grid cell)
+
 + COUNTY_ NAME 
+
 + MeanTemp1418 (mean temperature during the fire season from 2014-2018)
+
 + MeanHumidity1418 (mean humidity during the fire season from 2014-2018)
+
 + MeanWindSpeed1418 (mean wind speed during the fire season from 2014-2018)
+
 + n_fires_intersections (number of fires occurring in that grid cell)
+
 + Conifer.nn (distance to nearest grid cell that is majority conifer)
+
 + Hardwood.nn (distance to nearest grid cell that is majority hardwood)
+
 + Facilities.nn (distance to 5 nearest fire suppression facilities)
 
 The output below demonstrates that these features are highly statistically significant.
@@ -718,13 +751,13 @@ summary(fireModel)
 
 ## Adding Coefficients
 x <- fireModel$coefficients
-exp(x)
+#exp(x)
 ```
 
 
 ## Goodness of Fit
 ### Pseudo R Squared
-The McFadden pseudo r squared for this model is about .39. While this number is not particularly meaningful on its in, the McFadden pseudo r squared results for different iterations of the model were compared. A higher McFadden pseudo r squared indicates better accuracy. 
+The McFadden pseudo r squared for this model is about .39. While this number is not particularly meaningful on its own, the McFadden pseudo r squared results for different iterations of the model were compared. A higher McFadden pseudo r squared indicates better accuracy. 
 
 ```{r mcfadden, message=FALSE, warning=FALSE}
 ## Fit metrics
@@ -734,7 +767,7 @@ pR2(fireModel)
 ### ROC Curve
 The logistic model predicts the probability of fire occuring in a given .25 square mile grid cell from 0 to 1. To validate our model, we chose a probability threshold above which fire is predicted to occur. 
 
-The receiver operating characteristic (ROC) curve visualizes trade-offs for different thresholds for the feature engineered model. As true positives in the model increase, the number of false positives also increase. For the Spark Safe app, we are more interested in increasing the true positive rate than in decreasing the false positive rate. However, if the false positive rate is too high, homeowners may not take the app's predictions seriously. This could lead to a decrease in compliance with wildfire prevention measures in high fire risk areas.
+The receiver operating characteristic (ROC) curve visualizes trade-offs for different thresholds. As true positives in the model increase, the number of false positives also increase. For the SparkSafe app, we are more interested in increasing the true positive rate than in decreasing the false positive rate. However, if the false positive rate is too high, homeowners may not take the app's predictions seriously. This could lead to a decrease in compliance with wildfire prevention measures in high fire risk areas.
 
 An area under the curve (AUC) of .5 would be a coin toss, meaning the true positive rate and false positive rate are equal. An AUC of 100% would be a perfect fit with 100% true negatives and 0 false positives. Here, we have an AUC of about .92, which indicates that the model has a high goodness of fit.
 
@@ -754,10 +787,11 @@ ggplot(testProbs, aes(d = as.numeric(testProbs$Outcome), m = Probs)) +
   geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
   labs(title = "ROC Curve - Model with Feature Engineering")
 ```
+
 ### Distribution of Predicted Probabilities
 The plots below show the distribution of predicted probabilities for fire and no fire. The predicted probabilities for no fire cluster around 0. However, the predicted probabilities for areas that do have fire do not cluster around 1. This is because wildfire is a relatively rare event, so very few grid cells have a high probability of wildfire. Although we used 5 years of fire data, only 16% of our fishnet grid cells had wildfires during the time period under analysis. 
 
-given the distribution ofpredicted probabilities for grid cells that have fires, the default threshold of .5 does not make sense. For our use case, we would prefer to over predict fires than to underpredict. 
+Given the distribution of predicted probabilities for grid cells that have fires, the default threshold of .5 does not make sense. We would prefer to over predict fires with the SparkSafe app than to underpredict. 
 
 ```{r fit, message=FALSE, warning=FALSE}
 
@@ -787,7 +821,8 @@ hist(testProbsNoFire$Probs,
      xlab="Probability")
 ```
 
-###Confusion Matrix 
+
+### Confusion Matrix 
 Finally, we generated a confusion matrix for each iteration of our model.The confusion matrix tells us the number of true positives, true negatives, false positives, and false negatives for the model. A true positive here indicates that at a given threshold, the model correctly predicted that a wildfire would occur in a given .5 x .5 mile grid cell. A true negative means that our model correctly predicted that a wildfire would not occur. False positive means the model predicted fire, but no fire occured. False negative indicates that the model predicted no fire, but there was fire. The confusion matrix output also shows the sensitivity, or true positive rate, and specificity, or true negative rate, for the model.
 
 Given the distribution of predicted probabilities and our desire to overpredict rather than underpredict wildfire, we used a threshold of just .2 when comparing models.The final model has a sensitivity of about 80%.
@@ -802,15 +837,15 @@ caret::confusionMatrix(testProbs$predOutcome, testProbs$Outcome,
                        positive = "1")
 ```
 
-#Validating the Model 
-##Choosing a Threshold
+
+# Validating the Model 
+
+## Choosing a Threshold
 A cost benefit analysis is often used to determine the appropriate threshold for a logistic regression. In this case, a monetary cost benefit analysis does not make sense, given that the cost of adhering to fire prevention regulations is significantly lower than the cost of rebuilding a home. There are no monetary gains for homeowners in our use case, only monetary losses of different degrees.
 
-To choose a threshold, we replaced the 2014-2018 weather data with 2019 weather data in our model and generated probability predictions. We then visualized the distribution of predicted probabilities for cells with and without fire in 2019 and calculated the mean predicted probability for both cases. The mean predicted probability for cells with no fire is 0.006. The mean predicted probability for cells with fire is .248. This led us to choose a threshold of .2.
+To choose a threshold, we replaced the 2014-2018 weather data with 2019 weather data in our model and generated probability predictions. We then visualized the distribution of predicted probabilities for cells with and without fire in 2019 and calculated the mean predicted probability for both cases. 
 
-The confusion matrix below shows that our sensitivity is poor when predicting on 2019 data. This may be because our model is overfit on the training dataset and not generalizable to future years. The generalizability of the model will need to be improved before the Spark Safe app is ready for public use.
-
-```{r 2019, message=FALSE, warning=FA:SE}
+```{r 2019, message=FALSE, warning=FALSE, cache=TRUE}
 fireModel19 <- glm(Fire19 ~ .,
                  data=fishnet_clipped %>% st_drop_geometry()%>%
                    dplyr::select(-ID,-weather_ID, -Fire1418, -WUI_MAJ, -WUI.nn, 
@@ -828,15 +863,30 @@ testProbs19 <- data.frame(Outcome = as.factor(fishnet_clipped$Fire19),
 testProbs19nofire <- testProbs19 %>% filter(Outcome==0)
 testProbs19fire <- testProbs19 %>% filter (Outcome==1)
 
-hist(testProbs19nofire$Probs)
-hist(testProbs19fire$Probs)
+hist(testProbs19fire$Probs, 
+     col="#F96167",
+       main="Predicted Probabilities for Grid Cells with Fire in 2019",
+     xlab="Probability")
 
+hist(testProbs19nofire$Probs, 
+     col="#FCE77D",
+       main="Predicted Probabilities for Grid Cells with No Fire in 2019",
+     xlab="Probability")
+```
+
+The mean predicted probability for cells with no fire is 0.006. The mean predicted probability for cells with fire is .248. This led us to choose a threshold of .2.
+
+```{r 2019means, message=FALSE, warning=FALSE, cache=TRUE}
 ##0.006063904
 mean(testProbs19nofire$Probs)
 
 #0.2477918
 mean(testProbs19fire$Probs)
+```
 
+The confusion matrix below shows that our sensitivity is poor when predicting on 2019 data. This may be because our model is overfit on the training dataset and not generalizable to future years. In our next SparkSafe update, we aim to improve the ability of the model to forecast fires in future years.
+
+```{r 2019matrix, message=FALSE, warning=FALSE, cache=TRUE}
 ## Confusion Matrix for 2019 at .20 threshold
 testProbs19 <- 
   testProbs19 %>%
@@ -846,10 +896,9 @@ caret::confusionMatrix(testProbs19$predOutcome, testProbs19$Outcome,
                        positive = "1")
 ```
 
-The graph below visualizes confusion metrics for every possible threshold from 0 to 1. At .2, the true positive rate is high and the false negative rate is relatively low. A lower threshold would increase the true positive rate and decrease the false negative rate, but the false positive rate would also increase. This could lead to distrust in the application's predictions, which may reduce compliance. Therefore, our app will rate houses located in grid cells with .2 predicted probability or above as high risk zones, while houses with predicted probabilities greater than 0 but less than .2 will be deemed medium risk zones.
+The graph below visualizes confusion metrics for every possible threshold from 0 to 1. At .2, the true positive rate is high and the false negative rate is relatively low. A lower threshold would increase the true positive rate and decrease the false negative rate, but the false positive rate would also increase. This could lead to distrust in the application's predictions, which may reduce compliance. Therefore, our app will rate houses located in grid cells with .2 predicted probability or above as high risk zones, while houses with predicted probabilities greater than .03 but less than .2 will be deemed medium risk zones.
 
-ADD BLACK LINE HERE AT .2
-```{r threshold, warning=FALSE, message=FALSE}
+```{r threshold, warning=FALSE, message=FALSE, results=FALSE}
 iterateThresholds <- function(data, observedClass, predictedProbs, group) {
 #This function takes as its inputs, a data frame with an observed binomial class (1 or 0); a vector of predicted probabilities; and optionally a group indicator like race. It returns accuracy plus counts and rates of confusion matrix outcomes. It's a bit verbose because of the if (missing(group)). I don't know another way to make an optional parameter.
   observedClass <- enquo(observedClass)
@@ -921,33 +970,30 @@ whichThreshold <-
     dplyr::select(starts_with("Rate"), Threshold) %>%
     gather(Variable, Rate, Rate_TN,Rate_TP,Rate_FN,Rate_FP) 
 
-ggplot(data=whichThreshold, aes(Threshold,Rate,color=Variable)) +
-  geom_point()
+#ggplot(data=whichThreshold, aes(Threshold,Rate,color=Variable)) +
+ # geom_point()
   
 whichThreshold %>%
   ggplot(.,aes(Threshold,Rate,colour = Variable)) +
   geom_point() +
   #scale_colour_manual(values = palette5[c(5, 1:3)]) +    
-  labs(title = "Revenue by confusion matrix type and threshold",
+  labs(title = "Confusion Metric Rates at Different Thresholds",
        y = "Count") +
   plotTheme() +
-  guides(colour=guide_legend(title = "Confusion Matrix")) 
+  guides(colour=guide_legend(title = "Confusion Metric")) 
 
 ```
 
 ## Cross Validation
-Although our  model did not predict well on 2019 data, we performed other validation tests to judge the generalizability of our model. First, cross validation with 100 k folds was performed. The graphs below visualize teh area under the ROC curve, sensitivity, and specificity o fthe final model across folds. Each of these plots are clustered around the mean, indicating our model has decent generalizability. However, the generalizability of the model's sensitivity could be improved.
+Although our  model did not predict well on 2019 data, we performed other validation tests to judge the generalizability of our model. First, cross validation with 100 k folds was performed. The graphs below visualize the area under the ROC curve, sensitivity, and specificity of the final model across folds. Each of these plots are clustered around the mean, indicating our model has decent generalizability. However, the generalizability of the model's sensitivity could be improved.
 
-The first outputs indicate the area under the Receiver Operating Characteristic (ROC) curve, the sensitivity, and the specificity for the model. Again we see that both models have high specificity (true negative rates), but low sensitivity. The second output visualizes these metrics for both models across folds. If the models were generalizable, we wouldexpect all of these plots to be clustered around the mean. 
-
-MAKE SURE THIS MATCHES FINAL MODEL
 ```{r cv, message=FALSE, warning=FALSE, cache=TRUE}
 # K Fold Model Validation
 ctrl <- trainControl(method = "cv", number = 100, classProbs=TRUE, summaryFunction=twoClassSummary)
 
 cvFit <- train(Fire1418 ~ ., data = fishnet_clipped %>% st_drop_geometry() %>%
                  dplyr::select(
-                   -ID,-Fire19,-weather_ID, -WUI_MAJ,
+                   -ID,-Fire19,-weather_ID, -WUI_MAJ,-WUI.nn,
                    -MeanMaxTemp,-FIRE, -CoverCat, -ElevationBi,
                    -Fire.nn, -SlopeCat, -MeanPrecip1418, -Max_Temp19, 
                    -Mean_Temp19, -Mean_Precipitation19, 
@@ -974,9 +1020,9 @@ dplyr::select(cvFit$resample, -Resample) %>%
 ### Spatial Cross Validation
 To further test our model's generalizability, we conducted a spatial cross validation. By leaving out one county at a time, we were able to see how well our model predicts across space.
 
-The maps below visualize predicted and actual fires for each of the 13 counties. They show that ADD SOMETHING HERE
+The map below visualizes actual fires and predicted probabilities for each of the 13 counties. This shows that the model seems to correctly predict actual fires equally well across the counties. However, some counties have more areas with high predicted probability of fire where no fire actually occured. This suggests that more work could be done to improve the generalizability of the model across space.
 
-```{r spatial_cv, message=FALSE, warning=FALSE, cache=TRUE}
+```{r spatial_cv, message=FALSE, warning=FALSE, cache=TRUE, results=FALSE}
 # Model Validation
 crossValidate <- function(dataset, id, dependentVariable, indVariables) {
   
@@ -1011,7 +1057,7 @@ crossValidate <- function(dataset, id, dependentVariable, indVariables) {
 reg.vars <- c("FVEG_MAJ","ELEVATION_AV","SLOPE_MEAN", "COVER_MAJ","COUNTY_NAME",
               "MeanTemp1418","MeanHumidity1418","MeanWindSpeed1418",
               "n_fires_intersections","Conifer.nn","Hardwood.nn",
-              "Facilities.nn","WUI.nn")
+              "Facilities.nn")
 
 
 reg.spatialCV <- crossValidate(
@@ -1024,34 +1070,45 @@ reg.spatialcv <-
   reg.spatialCV %>%
   dplyr::select(cvID = COUNTY_NAME, Fire1418, Prediction, geometry)
 
+fire1418_clipped <- st_intersection(st_make_valid(fire_perimeter1418),st_make_valid(selected_counties))
+
 ggplot() +
   geom_sf(data = reg.spatialcv, aes(fill = Prediction), color = "transparent")+
-  geom_sf(data = fire_perimeter1418, fill = "transparent", color = "red")
+  geom_sf(data = fire1418_clipped, fill = "transparent", color = "red", size=.5)+
+  geom_sf(data=selected_counties, fill="transparent")+
+  labs(title="Predicted Probabilities and Actual Fires",
+       subtitle="Red outline marks perimeter of actual fires")+
+  mapTheme()
 
-reg.spatialcv <-
-  reg.spatialcv %>%
-  mutate(Error = Prediction - Fire1418)
-
-ggplot() +
-  geom_sf(data = reg.spatialcv, aes(fill = Error), color = "transparent")
 ```
 
 # Discussion
-Given the difficulty of predicting for rare events, and the notorious difficulty of forecasting wildfire behavior in particular, we are pleased with the performance of our model (Massey, 2013). Our cross validation indicates that the model is generalizable to new data and across the 13 counties. At a .2 threshold, which we feel is reasonable given the costs and benefits of overpredicting versus underpredicting fire, the model has high sensitivity and specificity.
+Given the difficulty of predicting for rare events, and the notorious difficulty of forecasting wildfire behavior in particular, we are pleased with the performance of our model (Massey, 2013). Our cross validation indicates that the model is generalizable to new data, though the generalizability across different counties could be improved. At a .2 threshold, which we feel is reasonable given the costs and benefits of overpredicting versus underpredicting fire, the model has high sensitivity and specificity. Each of the independent variables in the model is highly statistically significant.
 
-While the model can predict fire over the course of several years with reasonable accuracy, it does not perform as well when predicting on a single year, as we saw when predicting for 2019 fires. This is likely because fire is a relatively rare event over the course of a single year, even though wildfires have become an increasing threat in California over recent years.
+While the model can predict fire over the course of several years with reasonable accuracy, it does not perform as well when predicting on a single year, as we saw when predicting for 2019 fires. This is likely because fire is a relatively rare event over the course of a single year, even though wildfires have become an increasing threat in California. The model may also be overfit on the training data.
 
 In building our model, we predicted fires in previous years based on historical weather data from the corresponding years. In order to predict future fire risk, we will need to incorporate accurate weather predictions into the model (Baraniuk, 2018). The model will need to be updated as climate change continues to impact weather patterns and wildfire occurances.
 
-Rather than predicting whether or not fire will occur in a given grid cell, Spark Safe provides users with a risk score of Low, Medium, or High. This helps to address the issue of false negatives in our model, as homes with predicted fire probabilities below the .2 threshold but above 0 will be categorized under Medium Risk.
-
-As we continue to refine the Spark Safe model, we hope to increase the sensitivity of the model while keeping the false negative rate reasonably low.
+Rather than predicting whether or not fire will occur in a given grid cell, SparkSafe provides users with a risk score of Low, Medium, or High. This helps to address the issue of false negatives in our model, as homes with predicted fire probabilities below the .2 threshold but above .03 will be categorized under Medium Risk.
 
 # Conclusion
-NEED TO FIGURE OUT HOW TO ADD GEOMETRY BACK
-```{r conclusion, warning=FALSE, message=FALSE}
+The SparkSafe model offers a promising means of forecasting wildfire risk in Northern California. As we continue to refine the model, we aim to achieve the following:
+
++ Increase the sensitivity of the model while keeping the false negative rate reasonably low
+
++ Improve the model's generalizability across space
+
++ Incorporate accurate weather forecasts
+
++ Expand the spatial scale of nearest neighbor feature calculations to include data outside of the 13 counties
+
++ Generate wildfire risk predictions at a smaller spatial scale
+
+While there is room for improvement, we believe that the current version of the model provides useful insights into wildfire risk in Northern California. Using our app, homeowners can enter their address and instantly get a fire risk prediction. Homeowners in high risk areas will be prompted to submit a remote inspection to Cal Fire. We anticipate that this will improve compliance with fire prevention regulations across Northern California. 
+
+
+```{r conclusion, warning=FALSE, message=FALSE, cache=TRUE}
 # Map of Risk
-## Need to add geometry! 
 testProbs_all <- data.frame(Outcome = as.factor(fishnet_clipped$Fire1418),
                         Probs = predict(fireModel, fishnet_clipped, type= "response"),
                         ID= fishnet_clipped$ID)
@@ -1070,12 +1127,16 @@ palette3 <- c("#B81D13","#008450","#EFB700")
 ggplot() +
   geom_sf(data=fishnet_clipped_probs, aes(fill=Risk_Cat), color="transparent")+
   scale_fill_manual(values=palette3, name="Risk Score") +
-  labs(title="Predicted Risk Scores")+
+  labs(title="Predicted Risk Scores Across 13 Northern California Counties")+
   mapTheme()
 
 ```
+
 **Sources**:
+
 Baraniuk, C. (2018, October 7). The quest to predict - and stop - the spread of wildfires. *BBC*. https://www.bbc.com/future/article/20180924-the-quest-to-predict-and-stop-the-spread-of-wildfires
+
+Coulton, C.J., Jennings, M.Z. & Chan, T. How Big is My Neighborhood? Individual and Contextual Effects on Perceptions of Neighborhood Scale. *Am J Community Psychol* 51, 140–150 (2013). https://doi.org/10.1007/s10464-012-9550-6
  
 Massey, N. (2013, November 15). Finally, a Way to Predict a Wildfire's Behavior in Real Time. *Scientific American*. https://www.scientificamerican.com/article/finally-a-way-to-predict-a-wildfires-behavior-in-real-time/
 
